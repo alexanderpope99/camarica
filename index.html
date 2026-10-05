@@ -421,6 +421,7 @@ output.numed .nu{font-size:12px;color:var(--muted)}
 .cooktag{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:800;background:var(--berry-soft);color:var(--ink);border:1.5px solid var(--berry);border-radius:999px;padding:0 6px 0 3px;margin-bottom:2px;align-self:flex-start}
 .imgprev{border:2px solid var(--wood-l);border-radius:10px;overflow:auto;max-height:52vh;background:#f4e8c9}
 .imgprev img{display:block;width:100%;height:auto;min-width:640px}
+.whochips{gap:6px}.whochips .chip{display:inline-flex;align-items:center;gap:4px}
 .impr{border:2px solid var(--wood-l);border-radius:10px;padding:8px;background:var(--panel)}
 .impr details summary{cursor:pointer;color:var(--muted)}
 .tip.soft{background:var(--sky-soft);border-color:var(--wood-l)}
@@ -1384,6 +1385,7 @@ function planGrid(){
   </div>
   <section class="panel">
     <div class="row between" style="margin-bottom:6px"><p class="small muted" style="margin:0;flex:1;min-width:200px">Atinge o căsuță ca să alegi ce mănâncă fiecare și cât. Căsuțele punctate nu sunt acoperite de meal-prep (le poți completa totuși). ${spr("flame",14)} = zi de gătit.</p>
+      ${whoChips(calPeople(),"data-cw")}
       <span class="row" style="gap:6px"><button class="btn sm paper" id="calFull" title="Deschide orarul pe tot ecranul">⛶ Ecran complet</button><button class="btn sm paper" id="calImg" title="Salvează sau trimite orarul ca imagine">🖼 Imagine</button></span></div>
     <div class="calwrap">${calHTML(false)}</div>
   </section>
@@ -1402,11 +1404,17 @@ function planGrid(){
   if(calFull&&!modalOpen())openCalFull();
 }
 /* Orarul „cine ce mănâncă”: în pagină (iconițe) sau pe tot ecranul (cu numele felurilor) */
-function calHTML(full){const cookDays=new Map(PL().sessions.map(s=>[s.day,s])),ss=sessSorted();
+/* cine se vede în orar (S.calWho = null → toți) */
+const calPeople=()=>{const w=S.calWho;const ps=Array.isArray(w)?S.people.filter(p=>w.includes(p.id)):S.people;return ps.length?ps:S.people};
+const whoChips=(sel,attr)=>S.people.length<2?"":`<div class="seg whochips" role="group" aria-label="Ale cui mese se văd"><button class="chip" ${attr}="all" aria-pressed="${sel.length===S.people.length}">Toți</button>${S.people.map(p=>`<button class="chip" ${attr}="${p.id}" aria-pressed="${sel.some(x=>x.id===p.id)}">${avHTML(p,"sm")} ${esc(p.name)}</button>`).join("")}</div>`;
+function toggleWho(cur,id){if(id==="all")return null;const ids=new Set(cur.map(p=>p.id));if(ids.has(id))ids.delete(id);else ids.add(id);return ids.size&&ids.size<S.people.length?[...ids]:null}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-cw]");if(!b)return;S.calWho=toggleWho(calPeople(),b.dataset.cw);save();
+  if($("#overlay .sheet.calfull"))openCalFull();else if(S.tab==="plan"&&!modalOpen())viewPlan()});
+function calHTML(full){const cookDays=new Map(PL().sessions.map(s=>[s.day,s])),ss=sessSorted(),PP=calPeople();
   return `<table class="cal${full?" calf":""}" style="min-width:${(full?110:80)+LEN()*(full?190:128)}px"><thead><tr><th class="slot"></th>${DAYIX().map(d=>`<th>${esc(cap(dShort(d)))}<br>${cookDays.has(d)?`<span class="cook">${spr("flame",12)} gătim</span>`:"&nbsp;"}</th>`).join("")}</tr></thead>
-    <tbody>${activeSlots().map(sl=>`<tr><th class="slot">${spr(sl.s,18)}<br>${esc(sl.n)}</th>${DAYIX().map(d=>{
-      const covered=S.people.some(p=>cov(p,sl.id,d));
-      const lines=S.people.map(p=>{const es=entries(d,sl.id,p.id);if(!es.length&&!hasSlot(p,sl.id))return"";if(!es.length)return cov(p,sl.id,d)?`<div class="pl">${avHTML(p,"sm")}<span class="gap">gol</span></div>`:"";
+    <tbody>${activeSlots().filter(sl=>PP.some(p=>hasSlot(p,sl.id))).map(sl=>`<tr><th class="slot">${spr(sl.s,18)}<br>${esc(sl.n)}</th>${DAYIX().map(d=>{
+      const covered=PP.some(p=>cov(p,sl.id,d));
+      const lines=PP.map(p=>{const es=entries(d,sl.id,p.id);if(!es.length&&!hasSlot(p,sl.id))return"";if(!es.length)return cov(p,sl.id,d)?`<div class="pl">${avHTML(p,"sm")}<span class="gap">gol</span></div>`:"";
         const warn=es.some(e=>e.b&&(["bad","before"].includes(freshness(batchById(e.b),d,sl.id))||!compat(R[batchById(e.b).rid],p).ok)),ice=es.some(e=>e.b&&freshness(batchById(e.b),d,sl.id)==="freeze");
         const lg=logOf(iso(dayDate(d)),p.id,sl.id),lm=lg?`<span class="portion-flag" title="jurnal: ${LST[lg.st][1]}">${lg.st==="ok"?"✓":lg.st==="skip"?"⤫":"↺"}</span>`:"";
         const ico=e=>e.c?`<span class="dot-th" style="background:var(--butter-soft)">${spr("note",13)}</span>`:e.s?`<span class="dot-th" style="background:var(--leaf-soft)">${spr(FOOD[e.s].s,13)}</span>`:thumb(R[batchById(e.b).rid],"dot-th",13);
@@ -1419,7 +1427,7 @@ function calHTML(full){const cookDays=new Map(PL().sessions.map(s=>[s.day,s])),s
 let calFull=false;
 function openCalFull(){calFull=true;modalCtx=()=>openCalFull();
   openModal(`<div class="sheet-h"><div class="small" style="font-weight:800">${spr("cal",16)} CINE CE MĂNÂNCĂ · ${esc(weekLabel().toUpperCase())}</div><h2>Orarul mesei</h2>${xbtn()}</div>
-    <div class="sheet-b"><div class="row" style="gap:6px">${S.people.map(p=>`<span class="row small" style="gap:4px">${avHTML(p,"sm")}${esc(p.name)}</span>`).join("")}<span class="tiny-t muted" style="margin-left:auto">Atinge o căsuță ca s-o schimbi. Pe telefon, ținut orizontal se vede mai bine.</span><button class="btn sm paper" id="calImg2">🖼 Imagine</button></div>
+    <div class="sheet-b"><div class="row" style="gap:6px">${whoChips(calPeople(),"data-cw")}<span class="tiny-t muted" style="margin-left:auto">Atinge o căsuță ca s-o schimbi. Pe telefon, ținut orizontal se vede mai bine.</span><button class="btn sm paper" id="calImg2">🖼 Imagine</button></div>
     <div class="calwrap calfw">${calHTML(true)}</div></div>`,"calfull");
   $("#overlay").querySelectorAll("[data-slot]").forEach(b=>b.onclick=()=>{const [d,sl]=b.dataset.slot.split("|");editSlot(+d,sl)});$("#calImg2").onclick=calImageModal}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-gotab]");if(b){if(modalOpen())closeModal();go(b.dataset.gotab)}});
@@ -2959,12 +2967,16 @@ function mealsEditor(pid){let open=null,ask=null,nn="",nk="snack";modalCtx=()=>d
 }
 
 /* ================= Orarul ca imagine (SVG desenat de aplicație → PNG) ================= */
-const IMGC={bg:"#f4e8c9",panel:"#fdf6e3",ink:"#3b2a20",muted:"#7a6249",wood:"#8b5a2b",woodD:"#5c3a1e",woodL:"#c99a62",off:"#efe3c4",cook:"#c9463f",cookSoft:"#f8dcd6",stripe:["#f2c94c","#8fc7d6","#f29bb2"],pc:["#5e9a3c","#d9668a","#2b86c2","#c99015","#8a63c9","#b0532a"]};
+const IMGT={
+  light:{bg:"#f4e8c9",panel:"#fdf6e3",ink:"#3b2a20",muted:"#7a6249",wood:"#8b5a2b",woodD:"#5c3a1e",woodL:"#c99a62",off:"#efe3c4",cook:"#c9463f",cookSoft:"#f8dcd6",title:"#fdf6e3",sub:"#f2c94c",stripe:["#f2c94c","#8fc7d6","#f29bb2"],pc:["#5e9a3c","#d9668a","#2b86c2","#c99015","#8a63c9","#b0532a"]},
+  dark:{bg:"#1d2233",panel:"#2c3350",ink:"#f3e6c8",muted:"#bcae8f",wood:"#7a5233",woodD:"#140f0c",woodL:"#9c6c44",off:"#252b42",cook:"#f08a80",cookSoft:"#4f2f3a",title:"#fdf6e3",sub:"#f2c94c",stripe:["#f2c94c","#86c2d3","#f29bb2"],pc:["#6aa84c","#cf6686","#4596cc","#b38822","#9373d0","#c96a42"]}};
+const appDark=()=>S.theme==="dark"||(S.theme!=="light"&&(()=>{try{return matchMedia("(prefers-color-scheme: dark)").matches}catch(e){return false}})());
+let IMGC=IMGT.light;
 const IMGF="Nunito,'Segoe UI',Roboto,Arial,sans-serif";
 const sprAt=(n,x,y,s)=>{const v=sprSVG(n);return v?v.replace("<svg ",`<svg x="${x}" y="${y}" width="${s}" height="${s}" `):""};
 function wrapTxt(t,max){const words=String(t).split(/\s+/),out=[];let cur="";for(const w of words){if(!cur)cur=w;else if((cur+" "+w).length<=max)cur+=" "+w;else{out.push(cur);cur=w}}if(cur)out.push(cur);
   return out.flatMap(l=>l.length>max?l.match(new RegExp(".{1,"+max+"}","g")):[l])}
-function calSVG(pids){
+function calSVG(pids,theme){IMGC=IMGT[theme==="dark"||(!theme&&appDark())?"dark":"light"];
   const people=S.people.filter(p=>!pids||pids.includes(p.id)),slots=activeSlots().filter(sl=>people.some(p=>hasSlot(p,sl.id))),days=DAYIX(),ss=sessSorted();
   const M=24,SW=118,DW=212,HH=88,DH=50,FS=12.5,LH=16,maxC=Math.floor((DW-46)/(FS*.52));
   /* conținutul fiecărei căsuțe */
@@ -2978,9 +2990,9 @@ function calSVG(pids){
   let o=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="${IMGF}"><rect width="${W}" height="${H}" fill="${IMGC.bg}"/>`;
   /* titlu */
   o+=`<rect x="${M}" y="${M}" width="${W-2*M}" height="${HH-16}" rx="12" fill="${IMGC.wood}" stroke="${IMGC.woodD}" stroke-width="3"/>${sprAt("jar",M+14,M+14,44)}
-    <text x="${M+70}" y="${M+38}" font-size="24" font-weight="800" fill="#fdf6e3" font-family="'Courier New',monospace">Cine ce mănâncă</text>
-    <text x="${M+70}" y="${M+60}" font-size="14" fill="#f2c94c">${esc(weekLabel())} · ${LEN()} ${LEN()===1?"zi":"zile"}</text>`;
-  let lx=W-M-16;for(const p of people.slice().reverse()){const tw=p.name.length*8+34;lx-=tw;o+=`<circle cx="${lx+12}" cy="${M+36}" r="13" fill="${IMGC.pc[p.ci%6]}"/>${sprAt(p.av,lx+3,M+27,18)}<text x="${lx+30}" y="${M+41}" font-size="14" font-weight="700" fill="#fdf6e3">${esc(p.name)}</text>`}
+    <text x="${M+70}" y="${M+38}" font-size="24" font-weight="800" fill="${IMGC.title}" font-family="'Courier New',monospace">Cine ce mănâncă</text>
+    <text x="${M+70}" y="${M+60}" font-size="14" fill="${IMGC.sub}">${esc(weekLabel())} · ${LEN()} ${LEN()===1?"zi":"zile"}</text>`;
+  let lx=W-M-16;for(const p of people.slice().reverse()){const tw=p.name.length*8+34;lx-=tw;o+=`<circle cx="${lx+12}" cy="${M+36}" r="13" fill="${IMGC.pc[p.ci%6]}"/>${sprAt(p.av,lx+3,M+27,18)}<text x="${lx+30}" y="${M+41}" font-size="14" font-weight="700" fill="${IMGC.title}">${esc(p.name)}</text>`}
   /* capul de tabel */
   const y0=M+HH;
   days.forEach((d,i)=>{const x=M+SW+i*DW,cook=PL().sessions.some(s=>s.day===d);
@@ -3006,19 +3018,22 @@ function svgToPng(svg,w,h,scale){return new Promise((res,rej)=>{const img=new Im
   img.onload=()=>{try{const c=document.createElement("canvas");c.width=Math.round(w*scale);c.height=Math.round(h*scale);const x=c.getContext("2d");x.scale(scale,scale);x.drawImage(img,0,0,w,h);URL.revokeObjectURL(url);c.toBlob(b=>b?res(b):rej(new Error("png")),"image/png")}catch(e){rej(e)}};
   img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error("svg"))};img.src=url})}
 function downloadBlob(name,blob){try{const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800)}catch(e){toast("Descărcarea nu merge aici")}}
-function calImageModal(){let who="all";const prev=calFull;modalCtx=null;
-  const draw=()=>{const pids=who==="all"?null:[who],{svg,w,h}=calSVG(pids),name=`orar-${slug(weekLabel())}${pids?"-"+slug(person(who).name):""}`;
+function calImageModal(){let sel=calPeople(),th=appDark()?"dark":"light";modalCtx=null;
+  const draw=()=>{const pids=sel.length===S.people.length?null:sel.map(p=>p.id),{svg,w,h}=calSVG(pids,th),name=`orar-${slug(weekLabel())}${pids?"-"+sel.map(p=>slug(p.name)).join("-"):""}${th==="dark"?"-dark":""}`;
     openModal(`<div class="sheet-h"><h2>Orarul ca imagine</h2>${xbtn()}</div><div class="sheet-b">
-      ${S.people.length>1?`<div class="seg"><button class="chip" data-iw="all" aria-pressed="${who==="all"}">Toată lumea</button>${S.people.map(p=>`<button class="chip" data-iw="${p.id}" aria-pressed="${who===p.id}">${avHTML(p,"sm")} Doar ${esc(p.name)}</button>`).join("")}</div>`:""}
-      <div class="imgprev"><img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" alt="Previzualizare orar" width="${w}" height="${h}"></div>
+      <div class="row" style="gap:8px;align-items:center">${whoChips(sel,"data-iw")}
+        <div class="segbar" role="group" aria-label="Tema imaginii" style="min-width:200px;margin-left:auto"><button data-ith="light" aria-pressed="${th==="light"}">☀ Luminoasă</button><button data-ith="dark" aria-pressed="${th==="dark"}">☾ Întunecată</button></div></div>
+      <div class="imgprev" style="background:${IMGT[th].bg}"><img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" alt="Previzualizare orar" width="${w}" height="${h}"></div>
       <div class="row"><button class="btn green" id="iShare">Trimite PNG</button><button class="btn paper" id="iPng">Descarcă PNG</button><button class="btn paper sm" id="iSvg">Descarcă SVG</button></div>
-      <p class="tiny-t muted" style="margin:0">PNG e cel mai bun pentru WhatsApp și galerie (rezoluție dublă, se citește și mărit). SVG rămâne clar la orice mărime, bun de printat. ${fmt(w)} × ${fmt(h)} px.</p></div>`);
-    const o=$("#overlay");o.querySelectorAll("[data-iw]").forEach(b=>b.onclick=()=>{who=b.dataset.iw;draw()});
+      <p class="tiny-t muted" style="margin:0">Tema pornește ca a aplicației. PNG e cel mai bun pentru WhatsApp și galerie (rezoluție dublă); SVG rămâne clar la orice mărime, bun de printat. ${fmt(w)} × ${fmt(h)} px.</p></div>`);
+    const o=$("#overlay");
+    o.querySelectorAll("[data-iw]").forEach(b=>b.onclick=()=>{const t=toggleWho(sel,b.dataset.iw);sel=t?S.people.filter(p=>t.includes(p.id)):S.people.slice();draw()});
+    o.querySelectorAll("[data-ith]").forEach(b=>b.onclick=()=>{th=b.dataset.ith;draw()});
     const png=()=>svgToPng(svg,w,h,Math.min(2,6000/Math.max(w,h)));
     $("#iSvg").onclick=()=>downloadBlob(name+".svg",new Blob([svg],{type:"image/svg+xml"}));
     $("#iPng").onclick=async()=>{try{downloadBlob(name+".png",await png())}catch(e){toast("PNG nu merge în browserul ăsta: descarcă SVG")}};
     $("#iShare").onclick=async()=>{try{const b=await png(),f=new File([b],name+".png",{type:"image/png"});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:"Orarul mesei"});return}downloadBlob(name+".png",b);toast("Telefonul nu poate trimite direct: am descărcat imaginea")}catch(e){if(e&&e.name==="AbortError")return;toast("Nu am putut face PNG: descarcă SVG")}};
-  };calFull=false;draw();calFull=prev}
+  };draw()}
 
 /* ================= Text pentru WhatsApp ================= */
 function entriesText(es){return es.map(e=>e.c?e.n:entryName(e)+(e.m!==1?" ×"+fmtM(e.m):"")).join(" + ")}
