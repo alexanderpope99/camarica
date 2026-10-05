@@ -777,33 +777,11 @@ function suggestRecipes(det,onlySid){
     }
   }
 }
+/* Reface calendarul din rețetele deja alese, după meniul planului (vezi genSession cu keep) */
 function fillMeals(mode){
-  cleanMeals();
-  if(mode==="all")for(const k of Object.keys(PL().meals)){const a=PL().meals[k].filter(e=>!e.b);if(a.length)PL().meals[k]=a;else delete PL().meals[k]}
-  const ses=sessSorted();
-  for(let d=0;d<LEN();d++)for(const sl of SLOTS)for(const p of S.people){
-    if(!cov(p,sl.id,d))continue;
-    const cur=entries(d,sl.id,p.id);if(cur.some(e=>e.b))continue;
-    const avail=ses.filter(s=>s.day<=d).reverse();
-    const pick=roles=>{for(const s of avail){const bs=PL().batches.filter(b=>b.sid===s.id&&roles.includes(R[b.rid].role)&&freshness(b,d)!=="bad"&&compat(R[b.rid],p).ok);if(bs.length)return bs}return[]};
-    const add=[];
-    const mainIx=SLOTS.filter(s=>s.k==="main").findIndex(s=>s.id===sl.id);
-    if(sl.k==="md"){const bs=pick(["md"]);if(bs.length)add.push({b:bs[d%bs.length].id,m:r4(p.mult)})}
-    else if(sl.k==="snack"){const bs=pick(["snack"]);if(bs.length)add.push({b:bs[d%bs.length].id,m:r4(p.mult)})}
-    else{
-      const idx=d*2+Math.max(0,mainIx);
-      const mains=pick(["main"]),gar=pick(["side"]),sal=pick(["salad"]),sup=pick(["soup"]);
-      const soup=mainIx===0&&sup.length>0;
-      if(mains.length){const f=soup?.75:1;
-        if(soup)add.push({b:sup[d%sup.length].id,m:r4(p.mult*.6)});
-        add.push({b:mains[idx%mains.length].id,m:r4(p.mult*f)});
-        if(gar.length)add.push({b:gar[idx%gar.length].id,m:r4(p.mult*f)});
-        if(sal.length&&!soup)add.push({b:sal[idx%sal.length].id,m:r4(p.mult*.5)});
-      }else{const alt=[...sup,...sal];if(alt.length){add.push({b:alt[idx%alt.length].id,m:r4(p.mult)});if(gar.length)add.push({b:gar[idx%gar.length].id,m:r4(p.mult*.5)})}}
-    }
-    setEntries(d,sl.id,p.id,[...add,...cur.filter(e=>!e.b)]);
-  }
-  if(S.autoFit!==false)fitWeek();
+  cleanMeals();const rand=rng32(12345);
+  for(const s of sessSorted())genSession(s,rand,new Set(),{keep:true,empty:mode==="empty"});
+  cleanMeals();if(S.autoFit!==false)fitWeek();
 }
 
 /* ================= Nutriție ================= */
@@ -2481,13 +2459,22 @@ function menuSummary(M){return activeSlots().map(sl=>{const v=M[sl.id];
   return `<div class="msum"><b>${spr(sl.s,16)} ${esc(sl.n)}</b><span>${txt}</span></div>`}).join("")}
 
 /* Un plan aleatoriu pentru o zi de gătit (o încercare) */
-function genSession(s,rand,used){
-  const days=sessRange(s),M=menuOf(s),dset=new Set(days);
-  PL().batches=PL().batches.filter(b=>b.sid!==s.id);
-  for(const k of Object.keys(PL().meals)){if(!dset.has(+k.split("|")[0]))continue;const a=PL().meals[k].filter(e=>!e.b&&!e.a);if(a.length)PL().meals[k]=a;else delete PL().meals[k]}
-  const bOf=new Map(),chosen=new Map(),sess=new Set();
+/* Pune în calendar o zi de gătit după meniu.
+   Fără opts.keep: alege rețete noi (generatorul). Cu opts.keep: folosește doar rețetele deja alese la „Ce gătim”
+   (pentru „Refă tot calendarul”, „Umple golurile”, adăugat / scos o rețetă), tot după meniu. */
+function genSession(s,rand,used,opts={}){
+  const keep=!!opts.keep,empty=!!opts.empty,days=sessRange(s),M=menuOf(s),dset=new Set(days);
+  if(!keep)PL().batches=PL().batches.filter(b=>b.sid!==s.id);
+  if(!empty)for(const k of Object.keys(PL().meals)){if(!dset.has(+k.split("|")[0]))continue;const a=PL().meals[k].filter(e=>!e.b&&!e.a);if(a.length)PL().meals[k]=a;else delete PL().meals[k]}
+  const bOf=new Map(),chosen=new Map(),sess=new Set(),placed=new Set();
+  if(keep)for(const b of PL().batches)if(b.sid===s.id&&!bOf.has(b.rid))bOf.set(b.rid,b.id);
   const batchFor=rid=>{if(!bOf.has(rid)){const b={id:uid(),rid,sid:s.id,extra:0};PL().batches.push(b);bOf.set(rid,b.id)}return bOf.get(rid)};
-  const pick=(c,k,ppl)=>{const isF=c.t==="f";let pool=compPool(c).filter(x=>!sess.has(x.id));if(!pool.length)pool=compPool(c);
+  const match=(c,r)=>c.t==="c"?r.cats.includes(c.id):c.t==="k"?colHas(c.id,r.id):false;
+  const pick=(c,k,ppl)=>{const isF=c.t==="f";
+    if(keep&&!isF){let mine=[...bOf.keys()].map(id=>R[id]).filter(r=>r&&match(c,r)&&!sess.has(r.id));
+      if(!mine.length){const prev=sessSorted().filter(x=>x.day<s.day).reverse();for(const ps of prev){const bs=PL().batches.filter(b=>b.sid===ps.id&&R[b.rid]&&match(c,R[b.rid])&&freshness(b,days[0])!=="bad");if(bs.length){bs.forEach(b=>{if(!bOf.has(b.rid))bOf.set(b.rid,b.id)});mine=bs.map(b=>R[b.rid]);break}}}
+      mine.forEach(x=>sess.add(x.id));return mine.sort((a,b)=>(a.fd+(a.fz>0?3:0))-(b.fd+(b.fz>0?3:0)))}
+    let pool=compPool(c).filter(x=>!sess.has(x.id));if(!pool.length)pool=compPool(c);
     const w=x=>{let v=1;if(ppl.every(p=>okFor(x,p,isF)))v*=4;else if(!ppl.some(p=>okFor(x,p,isF)))v*=.03;
       if(!isF){if(S.fav.includes(x.id))v*=2;if(used.has(x.id))v*=.35;if(!(x.fd>=days.length||x.fz>0))v*=.3}return v};
     const out=[],cand=pool.slice();
@@ -2497,19 +2484,27 @@ function genSession(s,rand,used){
     out.forEach(x=>sess.add(x.id));
     if(!isF)out.sort((a,b)=>(a.fd+(a.fz>0?3:0))-(b.fd+(b.fz>0?3:0)));
     return out};
+  const busy=(d,sl,p)=>empty&&entries(d,sl,p.id).some(e=>e.b||e.a);
   for(const sl of SLOTS.map(x=>x.id)){
     const base=typeof M[sl]==="string"?M[sl]:sl,comps=M[base];if(!Array.isArray(comps)||!comps.length)continue;
-    const diners=[];for(const d of days)for(const p of S.people)if(cov(p,sl,d))diners.push({d,p});if(!diners.length)continue;
-    const dl=[...new Set(diners.map(x=>x.d))],ppl=[...new Set(diners.map(x=>x.p))];
+    const all=[];for(const d of days)for(const p of S.people)if(cov(p,sl,d))all.push({d,p});if(!all.length)continue;
+    const diners=all.filter(x=>!busy(x.d,sl,x.p));
+    const dl=[...new Set(all.map(x=>x.d))],ppl=[...new Set(all.map(x=>x.p))];
     const roles=comps.map(c=>c.t==="c"?((CAT[c.id]||{}).role||""):c.t==="k"?"k":"f"),hasSoup=roles.includes("soup"),multi=comps.filter(c=>c.t!=="f").length>1;
     comps.forEach((c,ci)=>{if(c.t==="c"&&!CAT[c.id])return;if(c.t==="k"&&!colById(c.id))return;const key=base+"|"+ci;let vars=chosen.get(key);
       if(!vars){vars=pick(c,+c.v>0?+c.v:dl.length,ppl);chosen.set(key,vars)}
       if(!vars.length)return;const isF=c.t==="f",shift=base!==sl&&vars.length>1?1:0;
       for(const {d,p} of diners){let it=vars[(Math.min(vars.length-1,Math.floor(dl.indexOf(d)*vars.length/dl.length))+shift)%vars.length];
-        if(!okFor(it,p,isF)){it=vars.find(x=>okFor(x,p,isF))||compPool(c).find(x=>okFor(x,p,isF));if(!it)continue}
+        if(!okFor(it,p,isF)){it=vars.find(x=>okFor(x,p,isF))||(keep&&!isF?null:compPool(c).find(x=>okFor(x,p,isF)));if(!it)continue}
         let e;if(isF)e={s:it.id,m:1,a:1};
-        else{let f=1;const ro=(c.t==="c"&&(CAT[c.id]||{}).role)||it.role;if(multi){if(ro==="soup")f=.6;else if(ro==="salad")f=.5;else if(hasSoup&&(ro==="main"||ro==="side"))f=.75}e={b:batchFor(it.id),m:r4(p.mult*f)}}
+        else{let f=1;const ro=(c.t==="c"&&(CAT[c.id]||{}).role)||it.role;if(multi){if(ro==="soup")f=.6;else if(ro==="salad")f=.5;else if(hasSoup&&(ro==="main"||ro==="side"))f=.75}
+          e={b:batchFor(it.id),m:r4(p.mult*f)};placed.add(it.id)}
         setEntries(d,sl,p.id,[...entries(d,sl,p.id),e])}})}
+  /* rețete puse de mână la „Ce gătim”, care nu sunt în meniu: merg la prima masă potrivită ca fel */
+  if(keep)for(const b of PL().batches.filter(x=>x.sid===s.id&&R[x.rid]&&!placed.has(x.rid)&&!sess.has(x.rid))){const r=R[b.rid];
+    const kind=r.role==="md"?"md":r.role==="snack"?"snack":"main",sl=(SLOTS.find(x=>x.k===kind&&S.people.some(p=>days.some(d=>cov(p,x.id,d))))||{}).id;if(!sl)continue;
+    for(const d of days)for(const p of S.people){if(!cov(p,sl,d)||busy(d,sl,p)||!compat(r,p).ok)continue;
+      setEntries(d,sl,p.id,[...entries(d,sl,p.id),{b:b.id,m:r4(p.mult*(r.role==="salad"?.5:1))}])}}
 }
 /* Cât de departe e planul de ținte (mai mic = mai bine) */
 function scoreRange(days){let sc=0;
