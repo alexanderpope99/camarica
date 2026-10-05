@@ -369,6 +369,17 @@ footer{margin-top:26px;font-size:13px;color:var(--muted)}
 .srcl{position:absolute;top:8px;left:8px;z-index:3;background:var(--panel);border:2px solid var(--wood-d);border-radius:50%;width:36px;height:36px;display:grid;place-items:center;
   color:var(--ink);text-decoration:none;font-weight:900;font-size:18px;box-shadow:0 2px 0 var(--wood-d)}
 .srcl:hover,.srcl:focus-visible{background:var(--butter);transform:translateY(-1px)}
+.mealrow{display:grid;grid-template-columns:auto auto minmax(0,1fr) 92px auto;gap:6px 8px;align-items:center;padding:8px;border:2px solid var(--wood-l);border-radius:10px;background:var(--panel)}
+.mealrow.off{opacity:.65;border-style:dashed}
+.mealrow .mmeta{grid-column:3/-1}
+.mealrow .mmeta select{border:1.5px solid var(--wood-l);border-radius:6px;padding:1px 4px;background:var(--panel);font-size:12px}
+.pctbox{display:flex;align-items:center;gap:3px}.pctbox input{width:100%;text-align:right}
+.logslot.ls-ex{border-style:dashed;background:var(--sky-soft)}
+output.numed{cursor:text;border-bottom:1.5px dashed var(--wood-l);border-radius:2px;padding:0 2px;min-width:2.4em;text-align:center;display:inline-flex;align-items:center;justify-content:center;gap:2px}
+output.numed:hover,output.numed:focus-visible{background:var(--butter-soft);outline:none;border-bottom-color:var(--wood-d)}
+output.numed.editing{border-bottom-color:transparent;background:none}
+.numin{width:5.2em;border:2px solid var(--wood-d);border-radius:6px;padding:2px 4px;background:var(--panel);color:var(--ink);text-align:center;font-weight:800;font-size:14px}
+output.numed .nu{font-size:12px;color:var(--muted)}
 .impr{border:2px solid var(--wood-l);border-radius:10px;padding:8px;background:var(--panel)}
 .impr details summary{cursor:pointer;color:var(--muted)}
 .tip.soft{background:var(--sky-soft);border-color:var(--wood-l)}
@@ -401,6 +412,8 @@ label.row>input[type=radio],label.row>input[type=checkbox]{flex:none;margin-top:
 .cart{display:grid;gap:6px;background:var(--leaf-soft);border-radius:10px;padding:8px}
 @media (max-width:520px){
   .msum{grid-template-columns:1fr;gap:2px}
+  .mealrow{grid-template-columns:auto auto minmax(0,1fr) 78px}
+  .mealrow>.row{grid-column:3/-1;justify-content:flex-end}
   .mrow{grid-template-columns:auto minmax(0,1fr) auto}
   .mrow select{grid-column:2/3;grid-row:2}
   .edrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
@@ -463,8 +476,20 @@ let RECIPES=[],R={},CATS=[],CAT={},ING={},FOODS=[],FOOD={},INGIX=null;
 const BASE_IDS=new Set(RX0.map(r=>r.id));
 const ICONS=["egg","pot","drum","potato","leaf","cookie","jar","basket","flame","heart","flower","star","fridge","book","clock","note",...Object.keys(ICONL)];
 Object.assign(ICONL,{egg:"Ou",pot:"Oală",drum:"Pulpă",potato:"Cartof",leaf:"Frunză",cookie:"Biscuite",jar:"Borcan",basket:"Coș",flame:"Foc",heart:"Inimă",flower:"Floare",star:"Stea",fridge:"Frigider",book:"Carte",clock:"Ceas",note:"Bilețel"});
-const SLOTS=[{id:"md",n:"Mic dejun",s:"egg"},{id:"pr",n:"Prânz",s:"pot"},{id:"ci",n:"Cină",s:"drum"},{id:"gu",n:"Gustare",s:"cookie"}];
-const SLOT=Object.fromEntries(SLOTS.map(s=>[s.id,s]));
+/* Mesele zilei: lista e comună (ca rândurile din calendar să se alinieze), dar fiecare persoană alege ce mese are și cum își împarte caloriile (p.split, în %).
+   k = felul mesei, folosit de planul automat: md = mic dejun, main = masă principală, snack = gustare. */
+const BASE_SLOTS=[{id:"md",n:"Mic dejun",s:"egg",k:"md",pct:25},{id:"pr",n:"Prânz",s:"pot",k:"main",pct:35},{id:"ci",n:"Cină",s:"drum",k:"main",pct:30},{id:"gu",n:"Gustare",s:"cookie",k:"snack",pct:10}];
+const SKINDS=[{id:"md",n:"mic dejun"},{id:"main",n:"masă principală"},{id:"snack",n:"gustare"}];
+let SLOTS=[],SLOT={};
+const EXS={id:"ex",n:"Extra",s:"star",k:"snack"};
+const slotInfo=id=>id==="ex"?EXS:SLOT[id]||{id,n:"masă ștearsă",s:"note",k:"snack"};
+const hasSlot=(p,sl)=>!!p&&!!p.split&&p.split[sl]!=null;
+const pSlots=p=>SLOTS.filter(s=>hasSlot(p,s.id));
+const activeSlots=()=>SLOTS.filter(s=>S.people.some(p=>hasSlot(p,s.id)));
+function shareOf(p,sl){if(!hasSlot(p,sl))return 0;const t=pSlots(p).reduce((a,s)=>a+(+p.split[s.id]||0),0);return t?(+p.split[sl]||0)/t:0}
+function fixPeople(){for(const p of S.people){if(!p.split||typeof p.split!=="object")p.split=Object.fromEntries(BASE_SLOTS.filter(s=>SLOT[s.id]).map(s=>[s.id,s.pct]));
+  for(const k of Object.keys(p.split))if(!SLOT[k])delete p.split[k];if(!Object.keys(p.split).length&&SLOTS[0])p.split[SLOTS[0].id]=100;
+  if(!p.cover)p.cover={};for(const s of SLOTS)if(!Array.isArray(p.cover[s.id]))p.cover[s.id]=[0,0,0,0,0,0,0]}}
 const AISLES=[{id:"legume",name:"Legume și fructe",s:"leaf"},{id:"carne",name:"Carne și pește",s:"drum"},{id:"lactate",name:"Lactate și ouă",s:"egg"},
   {id:"conserve",name:"Conserve și borcane",s:"jar"},{id:"camara",name:"Cămară (uscate)",s:"basket"},{id:"baza",name:"Bază (sare, ulei, condimente)",s:"fridge"},{id:"altele",name:"Altele",s:"note"}];
 const AISLE=Object.fromEntries(AISLES.map(a=>[a.id,a]));
@@ -489,6 +514,33 @@ async function shareText(text,title){
   copyText(text,"Copiat. Lipește unde vrei.");
 }
 function download(name,text,mime){try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:mime||"text/plain"}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}catch(e){toast("Descărcarea nu merge aici. Folosește „Copiază”.")}}
+
+/* ================= Numere scrise de mână (pe lângă − / +) =================
+   Atingi valoarea dintre − și + și scrii: 6,23 · 6.23 · ½ · 1 1/2 · 3/4 · +0,5 (adaugă) · −1 (scade) · 1,2 kg (la cantități). Max. 2 zecimale. */
+const fmtIn=v=>String(Math.round((+v||0)*100)/100).replace(".",",");
+function parseNum(s,cur,u){s=String(s??"").trim().toLowerCase().replace(/^[×x*]\s*/,"").replace(/%$/,"").replace(/\s+/g," ");if(!s)return null;
+  let rel=0;if(/^[+\-−]/.test(s)&&cur!=null){rel=s[0]==="+"?1:-1;s=s.slice(1).trim()}
+  let mult=1;const um=s.match(/\s*(kg|g|gr|ml|l|buc|porții|portii|porție|portie|kcal)\.?$/);if(um){if((u==="g"||u==="ml")&&(um[1]==="kg"||um[1]==="l"))mult=1000;s=s.slice(0,um.index).trim()}
+  s=s.replace(",",".");const F={"½":.5,"¼":.25,"¾":.75,"⅓":1/3,"⅔":2/3};let v=null,m;
+  if((m=s.match(/^(\d+(?:\.\d+)?)\s*([½¼¾⅓⅔])$/)))v=+m[1]+F[m[2]];else if(F[s]!=null)v=F[s];
+  else if((m=s.match(/^(\d+)\s+(\d+)\/(\d+)$/)))v=+m[1]+m[2]/m[3];else if((m=s.match(/^(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/)))v=m[2]>0?m[1]/m[2]:null;
+  else if(/^(\d+\.?\d*|\.\d+)$/.test(s))v=parseFloat(s);
+  if(v==null||!isFinite(v))return null;v*=mult;if(rel)v=(+cur||0)+rel*v;return Math.round(v*100)/100}
+const NUMSET={};
+const numOut=(v,key,disp,o={})=>`<output class="numed" data-num="${esc(key)}" data-v="${+v||0}" data-min="${o.min??0}" data-max="${o.max??100000}" data-u="${o.u||""}" tabindex="0" role="button" title="Atinge ca să scrii altă valoare" aria-label="${esc(disp)}: atinge ca să scrii altă valoare"${o.st?` style="${o.st}"`:""}>${disp}</output>`;
+function numEdit(o){if(o.querySelector("input"))return;const v=+o.dataset.v,u=o.dataset.u,old=o.innerHTML;o.classList.add("editing");
+  o.innerHTML=`<input class="numin" inputmode="decimal" enterkeyhint="done" autocomplete="off" value="${fmtIn(u==="buc"||!u?v:v)}" placeholder="ex. 1,25" aria-label="Scrie valoarea">${u?`<span class="nu">${u}</span>`:""}`;
+  const inp=o.querySelector("input");inp.focus();inp.select();let done=false;
+  const end=()=>{o.innerHTML=old;o.classList.remove("editing")};
+  const commit=ok=>{if(done)return;done=true;if(!ok){end();return}
+    const x=parseNum(inp.value,v,u);if(x==null){end();if(inp.value.trim())toast("Nu înțeleg „"+inp.value.trim()+"”. Scrie un număr, ex. 1,25");return}
+    const val=Math.min(+o.dataset.max,Math.max(+o.dataset.min,x));if(val===v){end();return}
+    const [k,...args]=o.dataset.num.split("|");const fn=NUMSET[k];if(fn)fn(...args,val);else end()};
+  inp.addEventListener("input",()=>{const c=inp.value.replace(/([.,]\d{2})\d+/,"$1");if(c!==inp.value)inp.value=c});
+  inp.addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();commit(true)}else if(ev.key==="Escape"){ev.preventDefault();ev.stopPropagation();commit(false)}});
+  inp.addEventListener("blur",()=>commit(true));inp.addEventListener("click",ev=>ev.stopPropagation())}
+document.addEventListener("click",e=>{const o=e.target.closest("output[data-num]");if(o)numEdit(o)});
+document.addEventListener("keydown",e=>{const o=e.target.closest&&e.target.closest("output[data-num]");if(o&&(e.key==="Enter"||e.key===" ")&&!o.querySelector("input")){e.preventDefault();numEdit(o)}});
 
 /* ================= Bibliotecă: date derivate ================= */
 const NUTK=["kcal","p","c","f","sf","fib","sug","na"];
@@ -594,6 +646,7 @@ function rebuildLib(){
   for(const r of RX0)if(!del.has(r.id))list.push(L.rx[r.id]||r);
   for(const id in L.rx)if(!BASE_IDS.has(id)||del.has(id))list.push(L.rx[id]);
   RECIPES=list.map(derive);R=Object.fromEntries(RECIPES.map(r=>[r.id,r]));
+  SLOTS=(Array.isArray(S.slots)&&S.slots.length?S.slots:BASE_SLOTS).map(s=>({...s}));SLOT=Object.fromEntries(SLOTS.map(s=>[s.id,s]));
   FGROUPS=(Array.isArray(S.fgroups)?S.fgroups:BASE_FGROUPS).map(g=>({...g}));FG=Object.fromEntries(FGROUPS.map(g=>[g.id,g]));
   FOODS=S.foods.filter(f=>f&&ING[f.k]).map(deriveFood);FOOD=Object.fromEntries(FOODS.map(f=>[f.id,f]));
 }
@@ -625,9 +678,9 @@ function macroPct(n){const p=n.p*4,c=n.c*4,f=n.f*9,t=p+c+f||1;
 
 /* ================= Stare ================= */
 const LS="cute-meal-planner-v2";
-function defCover(){const c={};for(const s of SLOTS)c[s.id]=[0,1,2,3,4,5,6].map(d=>d>=1&&d<=5?1:0);c.ci[0]=1;return c}
+function defCover(){const c={};for(const s of BASE_SLOTS)c[s.id]=[0,1,2,3,4,5,6].map(d=>d>=1&&d<=5?1:0);c.ci[0]=1;return c}
 function newPerson(i){return{id:uid(),name:"Persoana "+(i+1),av:AV[i%6],ci:i%6,mult:i===0?1.2:i===1?.9:1,
-  t:i===1?{kcal:1600,p:100,c:170,f:55,fib:25}:{kcal:2000,p:140,c:210,f:65,fib:30},tMode:"zi",diet:"omnivor",nolac:false,nogl:false,avoid:[],cover:defCover()}}
+  split:{md:25,pr:35,ci:30,gu:10},t:i===1?{kcal:1600,p:100,c:170,f:55,fib:25}:{kcal:2000,p:140,c:210,f:65,fib:30},tMode:"zi",diet:"omnivor",nolac:false,nogl:false,avoid:[],cover:defCover()}}
 function defaults(){return{v:2,theme:"auto",tab:"retete",planTab:"gatim",setup:false,sample:true,fav:[],people:[newPerson(0),newPerson(1)],
   plan:{start:nextSunday(),len:7,sessions:[{id:uid(),day:0},{id:uid(),day:3}],batches:[],meals:{}},shop:[],pantry:[],boxes:[],done:{},cookSess:null,nutP:null,nutD:1,weights:{},
   lib:{cats:null,rx:{},del:[],ing:{}},foods:defFoods(),cols:[{id:"incerc",n:"Vreau să încerc",s:"star",ids:[]}],menu:null,log:{},trackInv:true,nutView:"jurnal",jD:null}}
@@ -635,7 +688,7 @@ let S;
 try{S=JSON.parse(localStorage.getItem(LS)||"null")}catch(e){S=null}
 function sane(){
   const d=defaults();
-  if(!S||typeof S!=="object"||!Array.isArray(S.people)||!S.people.length||!S.plan){S=d;rebuildLib();return false}
+  if(!S||typeof S!=="object"||!Array.isArray(S.people)||!S.people.length||!S.plan){S=d;rebuildLib();fixPeople();return false}
   for(const k of Object.keys(d))if(S[k]===undefined)S[k]=d[k];
   for(const p of S.people){if(!p.cover)p.cover=defCover();if(!p.t)p.t=newPerson(0).t;if(!p.avoid)p.avoid=[];if(p.ci==null)p.ci=0}
   if(!(S.plan.len>=1))S.plan.len=7;
@@ -645,7 +698,8 @@ function sane(){
   if(!Array.isArray(S.foods))S.foods=defFoods();
   if(!Array.isArray(S.cols))S.cols=d.cols;S.cols=S.cols.filter(c=>c&&c.id&&c.id!=="fav");for(const c of S.cols)if(!Array.isArray(c.ids))c.ids=[];if(S.fgroups!=null&&!Array.isArray(S.fgroups))S.fgroups=null;
   if(!S.log||typeof S.log!=="object")S.log={};for(const s of S.plan.sessions)if(s.menu&&typeof s.menu!=="object")delete s.menu;
-  rebuildLib();pruneRefs();
+  if(S.slots!=null&&!Array.isArray(S.slots))S.slots=null;
+  rebuildLib();fixPeople();pruneRefs();
   return true;
 }
 function save(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
@@ -673,7 +727,7 @@ const dShort=i=>{const d=dayDate(i);return DAYS[d.getDay()]+" "+d.getDate()};
 const dLong=i=>{const d=dayDate(i);return DAYF[d.getDay()]+" "+d.toLocaleDateString("ro-RO",{day:"numeric",month:"short"})};
 const LEN=()=>Math.max(1,PL().len||7);
 const DAYIX=()=>Array.from({length:LEN()},(_,i)=>i);
-const cov=(p,sl,d)=>p.cover[sl][dayDate(d).getDay()];
+const cov=(p,sl,d)=>hasSlot(p,sl)&&p.cover[sl]?p.cover[sl][dayDate(d).getDay()]:0;
 const weekLabel=()=>{const a=dayDate(0),b=dayDate(LEN()-1);if(LEN()===1)return a.toLocaleDateString("ro-RO",{day:"numeric",month:"short"});return a.getDate()+(a.getMonth()!==b.getMonth()?" "+a.toLocaleDateString("ro-RO",{month:"short"}):"")+" – "+b.toLocaleDateString("ro-RO",{day:"numeric",month:"short"})};
 const sesById=id=>PL().sessions.find(s=>s.id===id);
 const sessSorted=()=>PL().sessions.slice().sort((a,b)=>a.day-b.day);
@@ -688,7 +742,7 @@ function portions(b){let t=+b.extra||0;for(const x of allMeals())if(x.e.b===b.id
 function freshness(b,d){const s=sesById(b.sid),r=R[b.rid];if(!s)return"bad";const age=d-s.day;if(age<0)return"before";if(age<=r.fd)return"ok";return r.fz>0?"freeze":"bad"}
 function sessRange(s){const ss=sessSorted(),i=ss.findIndex(x=>x.id===s.id);const end=i<ss.length-1?ss[i+1].day-1:LEN()-1;const a=[];for(let d=s.day;d<=Math.max(s.day,end);d++)a.push(d);return a}
 function cleanMeals(){for(const k of Object.keys(PL().meals)){const a=PL().meals[k].filter(e=>e.c||(e.s&&FOOD[e.s])||(e.b&&batchById(e.b)));if(a.length)PL().meals[k]=a;else delete PL().meals[k]}
-  const ids=new Set(S.people.map(p=>p.id));for(const k of Object.keys(PL().meals)){const [d,,pid]=k.split("|");if(!ids.has(pid)||+d>=LEN())delete PL().meals[k]}}
+  const ids=new Set(S.people.map(p=>p.id));for(const k of Object.keys(PL().meals)){const [d,sl,pid]=k.split("|");if(!ids.has(pid)||+d>=LEN()||!SLOT[sl])delete PL().meals[k]}}
 
 let seed=11;const rnd=()=>{seed=(seed*16807)%2147483647;return(seed-1)/2147483646};
 function pickRecipes(role,n,used,usedProt,len,det,filt){
@@ -709,14 +763,14 @@ function suggestRecipes(det,onlySid){
   for(const s of ses){
     if(onlySid&&s.id!==onlySid)continue;
     const days=sessRange(s);let md=0,mains=0,gu=0;
-    for(const p of S.people)for(const d of days){md+=cov(p,"md",d);mains+=cov(p,"pr",d)+cov(p,"ci",d);gu+=cov(p,"gu",d)}
+    for(const p of S.people)for(const d of days)for(const sl of SLOTS){const c=cov(p,sl.id,d);if(sl.k==="md")md+=c;else if(sl.k==="snack")gu+=c;else mains+=c}
     const want=[];
     if(md)want.push(["md",1]);
     if(mains){want.push(["main",mains>=6?2:1]);want.push(["side",mains>=8?2:1]);want.push(["salad",1]);if(mains>=6&&ses.indexOf(s)===0)want.push(["soup",1])}
     if(gu)want.push(["snack",1]);
     for(const [cat,n] of want)for(const r of pickRecipes(cat,n,used,usedProt,days.length,det)){used.add(r.id);usedProt.add(r.prot);PL().batches.push({id:uid(),rid:r.id,sid:s.id,extra:0})}
     for(const p of S.people){
-      if(!days.some(d=>cov(p,"pr",d)||cov(p,"ci",d)))continue;
+      if(!days.some(d=>SLOTS.some(sl=>sl.k==="main"&&cov(p,sl.id,d))))continue;
       const ok=PL().batches.some(b=>b.sid===s.id&&["main","soup"].includes(R[b.rid].role)&&compat(R[b.rid],p).ok);
       if(!ok){const alt=pickRecipes("soup",1,used,usedProt,days.length,det,r=>compat(r,p).ok)[0]||pickRecipes("salad",1,used,usedProt,days.length,det,r=>compat(r,p).ok)[0]||pickRecipes("main",1,used,usedProt,days.length,det,r=>compat(r,p).ok)[0];
         if(alt){used.add(alt.id);PL().batches.push({id:uid(),rid:alt.id,sid:s.id,extra:0})}}
@@ -733,12 +787,13 @@ function fillMeals(mode){
     const avail=ses.filter(s=>s.day<=d).reverse();
     const pick=roles=>{for(const s of avail){const bs=PL().batches.filter(b=>b.sid===s.id&&roles.includes(R[b.rid].role)&&freshness(b,d)!=="bad"&&compat(R[b.rid],p).ok);if(bs.length)return bs}return[]};
     const add=[];
-    if(sl.id==="md"){const bs=pick(["md"]);if(bs.length)add.push({b:bs[d%bs.length].id,m:r4(p.mult)})}
-    else if(sl.id==="gu"){const bs=pick(["snack"]);if(bs.length)add.push({b:bs[d%bs.length].id,m:r4(p.mult)})}
+    const mainIx=SLOTS.filter(s=>s.k==="main").findIndex(s=>s.id===sl.id);
+    if(sl.k==="md"){const bs=pick(["md"]);if(bs.length)add.push({b:bs[d%bs.length].id,m:r4(p.mult)})}
+    else if(sl.k==="snack"){const bs=pick(["snack"]);if(bs.length)add.push({b:bs[d%bs.length].id,m:r4(p.mult)})}
     else{
-      const idx=d*2+(sl.id==="ci"?1:0);
+      const idx=d*2+Math.max(0,mainIx);
       const mains=pick(["main"]),gar=pick(["side"]),sal=pick(["salad"]),sup=pick(["soup"]);
-      const soup=sl.id==="pr"&&sup.length>0;
+      const soup=mainIx===0&&sup.length>0;
       if(mains.length){const f=soup?.75:1;
         if(soup)add.push({b:sup[d%sup.length].id,m:r4(p.mult*.6)});
         add.push({b:mains[idx%mains.length].id,m:r4(p.mult*f)});
@@ -764,16 +819,15 @@ function dayNut(pid,d){return SLOTS.reduce((a,s)=>addN(a,slotNut(d,s.id,pid)),ZN
 
 /* Potrivirea porțiilor: fiecare rețetă din zi primește un factor (0,5–1,6) ales ca ziua să ajungă la ținta de calorii
    și cât mai aproape de proteine (apoi carbohidrați și grăsimi). Ținta se ia proporțional cu mesele planificate în ziua aceea. */
-const SHARE={md:.25,pr:.35,ci:.3,gu:.1};
 const FITG=[];for(let v=50;v<=160;v+=5)FITG.push(v/100);
-function dayShare(pid,d,useCov){const p=person(pid);let s=0;for(const sl of SLOTS)if(entries(d,sl.id,pid).length||(useCov&&p&&cov(p,sl.id,d)))s+=SHARE[sl.id];return Math.min(1,s)}
+function dayShare(pid,d,useCov){const p=person(pid);let s=0;for(const sl of SLOTS)if(entries(d,sl.id,pid).length||(useCov&&p&&cov(p,sl.id,d)))s+=shareOf(p,sl.id)||.1;return Math.min(1,s)}
 function fitDay(pid,d,force,kcalDay){const p=person(pid);if(!p||!p.t.kcal)return false;
   const ents=[];let fx=ZN();
   for(const sl of SLOTS)entries(d,sl.id,pid).forEach((e,i)=>{const b=e.b&&batchById(e.b);if(b)ents.push({sl:sl.id,i,m:e.m,n:R[b.rid].nut});else fx=addN(fx,entryNut(e))});
   if(!ents.length)return false;
   const sh=dayShare(pid,d),T={k:(kcalDay||p.t.kcal)*sh,p:p.t.p*sh,c:p.t.c*sh,f:p.t.f*sh};
   const f=ents.map(()=>1),fxS={},TS={};
-  for(const sl of SLOTS){const es=entries(d,sl.id,pid);if(!es.length)continue;TS[sl.id]=T.k*SHARE[sl.id]/sh;fxS[sl.id]=es.reduce((a,e)=>a+(e.b&&batchById(e.b)?0:entryNut(e).kcal),0)}
+  for(const sl of SLOTS){const es=entries(d,sl.id,pid);if(!es.length)continue;TS[sl.id]=T.k*(shareOf(p,sl.id)||.1)/sh;fxS[sl.id]=es.reduce((a,e)=>a+(e.b&&batchById(e.b)?0:entryNut(e).kcal),0)}
   const obj=()=>{let k=fx.kcal,pp=fx.p,c=fx.c,ff=fx.f;const ks={...fxS};ents.forEach((x,i)=>{const m=x.m*f[i],kk=x.n.kcal*m;k+=kk;ks[x.sl]+=kk;pp+=x.n.p*m;c+=x.n.c*m;ff+=x.n.f*m});
     const ek=(k-T.k)/T.k,ep=T.p?(pp-T.p)/T.p:0,ec=T.c?(c-T.c)/T.c:0,ef=T.f?(ff-T.f)/T.f:0;
     let o=4*ek*ek+ep*ep*(ep<0?1.2:.35)+.15*(ec*ec+ef*ef);for(const v of f)o+=.05*(v-1)*(v-1);
@@ -1035,7 +1089,7 @@ function drawRecipe(){
       ${view==="noi"?`
       <div class="row" style="background:var(--leaf-soft);border-radius:10px;padding:8px 10px">
         <b>Porții</b>
-        <span class="stepper"><button data-m="-" aria-label="Mai puține porții">−</button><output>${fmtM(m)}</output><button data-m="+" aria-label="Mai multe porții">+</button></span>
+        <span class="stepper"><button data-m="-" aria-label="Mai puține porții">−</button>${numOut(m,"rm",fmtM(m),{min:.01,max:100})}<button data-m="+" aria-label="Mai multe porții">+</button></span>
         <button class="tiny" data-mset="1">1</button><button class="tiny" data-mset="${r.batch}">rețeta întreagă (${r.batch})</button>
       </div>
       ${ctx?`<p class="small muted" style="margin:6px 0 0">${esc(ctx)}</p>`:""}
@@ -1075,6 +1129,7 @@ function drawRecipe(){
   const o=$("#overlay");o.scrollTop=scroll;
   o.querySelectorAll("[data-sv]").forEach(b=>b.onclick=()=>{sheetState.view=b.dataset.sv;drawRecipe()});
   o.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{const c=sheetState.m;const st=c<1||(b.dataset.m==="-"&&c<=1)?.25:.5;sheetState.m=Math.min(40,Math.max(.25,Math.round((c+(b.dataset.m==="+"?st:-st))*4)/4));drawRecipe()});
+  NUMSET.rm=v=>{sheetState.m=v;drawRecipe()};
   o.querySelectorAll("[data-mset]").forEach(b=>b.onclick=()=>{sheetState.m=+b.dataset.mset;drawRecipe()});
   o.querySelector("[data-rxedit]").onclick=()=>editRecipe(id);
   o.querySelectorAll("[data-ctog]").forEach(b=>b.onclick=()=>{const c=b.dataset.ctog;colSet(c,id,!colHas(c,id));save();drawRecipe()});
@@ -1093,11 +1148,12 @@ function askSession(rid){
     <div class="fgroup"><b>Cum o împarți?</b>
       <label class="row small"><input type="radio" name="am" value="auto" ${mode==="auto"?"checked":""}> Reîmparte automat calendarul cu tot ce gătim (recomandat; modificările manuale din calendar se refac)</label>
       <label class="row small"><input type="radio" name="am" value="manual" ${mode==="manual"?"checked":""}> Doar o adaug; o pun eu în calendar</label></div>
-    <div class="row"><b class="small">Porții în plus (pentru congelator)</b><span class="stepper"><button id="xm" aria-label="Mai puține">−</button><output>${extra}</output><button id="xp" aria-label="Mai multe">+</button></span></div>
+    <div class="row"><b class="small">Porții în plus (pentru congelator)</b><span class="stepper"><button id="xm" aria-label="Mai puține">−</button>${numOut(extra,"ax",fmtM(extra),{max:100})}<button id="xp" aria-label="Mai multe">+</button></span></div>
     <div class="row"><button class="btn green" id="addOk">Adaugă</button></div></div>`);
     const o=$("#overlay");
     o.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{sid=b.dataset.s;draw()});
     o.querySelectorAll('input[name="am"]').forEach(x=>x.onchange=()=>{mode=x.value});
+    NUMSET.ax=v=>{extra=v;draw()};
     $("#xm").onclick=()=>{extra=Math.max(0,extra-1);draw()};$("#xp").onclick=()=>{extra=Math.min(30,extra+1);draw()};
     $("#addOk").onclick=()=>{if(!sid){toast("Adaugă întâi o sesiune de gătit în Plan");return}
       PL().batches.push({id:uid(),rid,sid,extra});S.sample=false;
@@ -1121,7 +1177,7 @@ function viewPlan(){
       <button class="btn sm paper" id="pToday">Începe azi</button>
     </div>
     <div class="row" style="gap:6px">${S.people.map(p=>`<button class="person" data-editp="${p.id}">${avHTML(p)}<span>${esc(p.name)}</span><span class="small muted">×${fmtM(p.mult)}</span></button>`).join("")}
-      <button class="chip" id="addPerson">+ persoană</button></div>
+      <button class="chip" id="addPerson">+ persoană</button><button class="chip" id="mealsEd">${spr("f_plate",14)} Mesele zilei</button></div>
   </div>
   ${S.sample?`<div class="note-box" style="margin-bottom:12px">Acesta e un <b>plan exemplu</b>, făcut automat. Apasă pe o persoană ca să-i pui numele, porția și țintele, apoi schimbă rețetele sau apasă „Plan nou”.</div>`:""}
   <div class="segbar" style="margin-bottom:14px">
@@ -1143,6 +1199,7 @@ function viewPlan(){
   $("#pToday").onclick=()=>{PL().start=iso(new Date());save();viewPlan();toast("Planul începe azi")};
   $("#pLen").onchange=e=>setLen(+e.target.value);
   $("#view").querySelectorAll("[data-editp]").forEach(b=>b.onclick=()=>editPerson(b.dataset.editp));
+  $("#mealsEd").onclick=()=>mealsEditor(S.people[0].id);
   $("#addPerson").onclick=()=>{const p=newPerson(S.people.length);S.people.push(p);save();editPerson(p.id,true)};
   $("#copyAll").onclick=()=>shareText(planText(),"Planul de meal-prep");
   $("#view").querySelectorAll("[data-copyp]").forEach(b=>b.onclick=()=>shareText(personText(b.dataset.copyp),"Planul meu"));
@@ -1196,7 +1253,7 @@ function planCook(){
           ${fz.length?`<div class="small" style="margin-top:4px">❄ ${fz.length} ${fz.length===1?"porție trece":"porții trec"} de ${r.fd} zile în frigider: congelați-le în ziua gătitului.</div>`:""}
           ${bad.length?`<div class="small" style="margin-top:4px;color:var(--berry)">⚠ ${bad.length} ${bad.length===1?"masă e":"mese sunt"} în afara termenului (nu se congelează). Mutați-le pe zile mai apropiate.</div>`:""}
           ${inc.length?`<div class="small" style="margin-top:4px;color:var(--berry)">⚠ Nu se potrivește pentru ${[...new Set(inc.map(x=>person(x.pid).name))].map(esc).join(", ")}.</div>`:""}
-          <div class="ctl"><span class="small muted">extra:</span><span class="stepper"><button data-bx="${b.id}" data-d="-" aria-label="Mai puține porții extra">−</button><output>${b.extra||0}</output><button data-bx="${b.id}" data-d="+" aria-label="Mai multe porții extra">+</button></span>
+          <div class="ctl"><span class="small muted">extra:</span><span class="stepper"><button data-bx="${b.id}" data-d="-" aria-label="Mai puține porții extra">−</button>${numOut(b.extra||0,"bx|"+b.id,fmtM(b.extra||0),{max:100})}<button data-bx="${b.id}" data-d="+" aria-label="Mai multe porții extra">+</button></span>
             <button class="tiny" data-breroll="${b.id}">alta</button><button class="tiny" data-bdel="${b.id}" aria-label="Scoate rețeta">×</button></div>
         </div></div>`}).join(""):`<div class="empty">${spr("basket",34)}<span class="muted small">Nimic de gătit în ziua asta încă.</span></div>`}</div>
       <div class="row" style="margin-top:10px"><button class="btn sm paper" data-addto="${s.id}">+ Adaugă rețetă</button><button class="btn sm paper" data-sugs="${s.id}">🎲 Generează din nou</button><button class="btn sm paper" data-smenu="${s.id}">Meniul zilei</button></div>
@@ -1214,6 +1271,7 @@ function planCook(){
   $("#covEdit").onclick=()=>editCover(S.people[0].id);
   B.querySelectorAll("[data-sday]").forEach(x=>x.onchange=()=>{sesById(x.dataset.sday).day=+x.value;save();viewPlan()});
   B.querySelectorAll("[data-sdel]").forEach(x=>x.onclick=()=>{const id=x.dataset.sdel;PL().sessions=PL().sessions.filter(s=>s.id!==id);PL().batches=PL().batches.filter(b=>b.sid!==id);cleanMeals();save();viewPlan()});
+  NUMSET.bx=(id,v)=>{batchById(id).extra=v;save();viewPlan()};
   B.querySelectorAll("[data-bx]").forEach(x=>x.onclick=()=>{const b=batchById(x.dataset.bx);b.extra=Math.max(0,(b.extra||0)+(x.dataset.d==="+"?1:-1));save();viewPlan()});
   B.querySelectorAll("[data-breroll]").forEach(x=>x.onclick=()=>{const b=batchById(x.dataset.breroll),cur=R[b.rid];const inPlan=new Set(PL().batches.map(y=>y.rid));
     const pool=RECIPES.filter(r=>!inPlan.has(r.id)&&(cur.role?r.role===cur.role:r.cats.some(c=>cur.cats.includes(c))));if(!pool.length){toast("Nu mai sunt alte rețete în categoria asta");return}
@@ -1250,9 +1308,9 @@ function planGrid(){
   <section class="panel">
     <p class="small muted" style="margin:0 0 6px">Atinge o căsuță ca să alegi ce mănâncă fiecare și cât. Căsuțele punctate nu sunt acoperite de meal-prep (le poți completa totuși). ${spr("flame",14)} = zi de gătit.</p>
     <div class="calwrap"><table class="cal" style="min-width:${80+LEN()*128}px"><thead><tr><th class="slot"></th>${DAYIX().map(d=>`<th>${esc(cap(dShort(d)))}<br>${cookDays.has(d)?`<span class="cook">${spr("flame",12)} gătim</span>`:"&nbsp;"}</th>`).join("")}</tr></thead>
-    <tbody>${SLOTS.map(sl=>`<tr><th class="slot">${spr(sl.s,18)}<br>${sl.n}</th>${DAYIX().map(d=>{
+    <tbody>${activeSlots().map(sl=>`<tr><th class="slot">${spr(sl.s,18)}<br>${esc(sl.n)}</th>${DAYIX().map(d=>{
       const covered=S.people.some(p=>cov(p,sl.id,d));
-      const lines=S.people.map(p=>{const es=entries(d,sl.id,p.id);if(!es.length)return cov(p,sl.id,d)?`<div class="pl">${avHTML(p,"sm")}<span class="gap">gol</span></div>`:"";
+      const lines=S.people.map(p=>{const es=entries(d,sl.id,p.id);if(!es.length&&!hasSlot(p,sl.id))return"";if(!es.length)return cov(p,sl.id,d)?`<div class="pl">${avHTML(p,"sm")}<span class="gap">gol</span></div>`:"";
         const warn=es.some(e=>e.b&&(["bad","before"].includes(freshness(batchById(e.b),d))||!compat(R[batchById(e.b).rid],p).ok)),ice=es.some(e=>e.b&&freshness(batchById(e.b),d)==="freeze");
         const lg=logOf(iso(dayDate(d)),p.id,sl.id),lm=lg?`<span class="portion-flag" title="jurnal: ${LST[lg.st][1]}">${lg.st==="ok"?"✓":lg.st==="skip"?"⤫":"↺"}</span>`:"";
         return `<div class="pl">${avHTML(p,"sm")}${lm}${es.map(e=>e.c?`<span class="dot-th" title="${esc(e.n)}" style="background:var(--butter-soft)">${spr("note",13)}</span>`:e.s?`<span class="dot-th" title="${esc(entryName(e))} ×${fmtM(e.m)}" style="background:var(--leaf-soft)">${spr(FOOD[e.s].s,13)}</span>`:`<span title="${esc(entryName(e))} ×${fmtM(e.m)}">${thumb(R[batchById(e.b).rid],"dot-th",13)}</span>`).join("")}${ice?'<span class="portion-flag" title="din congelator">❄</span>':""}${warn?'<span class="portion-flag" title="verifică">⚠</span>':""}</div>`}).join("");
@@ -1276,32 +1334,36 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-gotab]");i
 const PRESETS=[{n:"Ieșit în oraș",kcal:900,p:35,cb:80,f:40},{n:"Comandă",kcal:850,p:35,cb:85,f:35},{n:"Sandviș",kcal:450,p:20,cb:45,f:18},
   {n:"Masă la părinți / bunici",kcal:650,p:40,cb:55,f:25},{n:"Baton proteic",kcal:200,p:20,cb:18,f:7},{n:"Un fruct",kcal:90,p:1,cb:21,f:0}];
 function editSlot(d,sl,onlyPid){
-  let adding=null;
+  let adding=null,rq="";
   modalCtx=()=>draw();
   const draw=()=>{
     const avail=sessSorted().filter(s=>s.day<=d);
-    openModal(`<div class="sheet-h"><div class="small" style="font-weight:800">${spr(SLOT[sl].s,16)} ${SLOT[sl].n.toUpperCase()}</div><h2>${esc(cap(dLong(d)))}</h2>${xbtn()}</div>
+    const SI=slotInfo(sl),qq=norm(rq);
+    openModal(`<div class="sheet-h"><div class="small" style="font-weight:800">${spr(SI.s,16)} ${esc(SI.n.toUpperCase())}</div><h2>${esc(cap(dLong(d)))}</h2>${xbtn()}</div>
     <div class="sheet-b">
-      <div class="row" style="gap:6px">${SLOTS.map(s=>`<button class="chip" data-gos="${s.id}" aria-pressed="${s.id===sl}">${s.n}</button>`).join("")}
+      <div class="row" style="gap:6px">${activeSlots().map(s=>`<button class="chip" data-gos="${s.id}" aria-pressed="${s.id===sl}">${esc(s.n)}</button>`).join("")}
         <span class="grow"></span><button class="tiny" data-god="-1" ${d===0?"disabled":""}>◀ ziua</button><button class="tiny" data-god="1" ${d>=LEN()-1?"disabled":""}>ziua ▶</button></div>
-      ${S.people.filter(p=>!onlyPid||p.id===onlyPid).map(p=>{const es=entries(d,sl,p.id),nn=slotNut(d,sl,p.id);
+      ${S.people.filter(p=>(!onlyPid||p.id===onlyPid)&&(hasSlot(p,sl)||entries(d,sl,p.id).length||onlyPid)).map(p=>{const es=entries(d,sl,p.id),nn=slotNut(d,sl,p.id);
         return `<div class="slotp">
-          <div class="row between"><span class="row" style="gap:8px">${avHTML(p)}<b>${esc(p.name)}</b><span class="small muted">porție ×${fmtM(p.mult)}</span></span><span class="small"><b>${fmt(nn.kcal)}</b> kcal · <b>${fmt(nn.p)}</b> g P</span></div>
+          <div class="row between"><span class="row" style="gap:8px">${avHTML(p)}<b>${esc(p.name)}</b><span class="small muted">porție ×${fmtM(p.mult)}</span></span><span class="small"><b>${fmt(nn.kcal)}</b>${hasSlot(p,sl)?` / ${fmt(p.t.kcal*shareOf(p,sl))}`:""} kcal · <b>${fmt(nn.p)}</b> g P</span></div>
           ${es.length?es.map((e,i)=>{if(e.s){const f=FOOD[e.s];return `<div class="ent"><span class="dot-th" style="background:var(--leaf-soft)">${spr(f.s,13)}</span><span class="n">${esc(f.n)}<small>${esc(f.lbl||amt(f.g,f.u))} · ${fmt(f.nut.kcal*e.m)} kcal · ${fmt(f.nut.p*e.m)} g P</small></span>
-              <span class="stepper"><button data-em="${p.id}|${i}|-" aria-label="Mai puțin">−</button><output title="porții">×${fmtM(e.m)}</output><button data-em="${p.id}|${i}|+" aria-label="Mai mult">+</button></span>
+              <span class="stepper"><button data-em="${p.id}|${i}|-" aria-label="Mai puțin">−</button>${numOut(e.m,"em|"+p.id+"|"+i,"×"+fmtM(e.m),{min:.05,max:50})}<button data-em="${p.id}|${i}|+" aria-label="Mai mult">+</button></span>
               <button class="tiny" data-edel="${p.id}|${i}" aria-label="Scoate">×</button></div>`}
             if(e.c)return `<div class="ent"><span class="dot-th" style="background:var(--butter-soft)">${spr("note",13)}</span><span class="n">${esc(e.n)}<small>${fmt(e.kcal)} kcal · ${fmt(e.p)} g proteine</small></span><button class="tiny" data-edel="${p.id}|${i}" aria-label="Scoate">×</button></div>`;
             const b=batchById(e.b),r=R[b.rid],st=freshness(b,d),c=compat(r,p);
             return `<div class="ent">${thumb(r,"dot-th",13)}<span class="n">${esc(r.name)}<small>din ${esc(sesName(sesById(b.sid)))} · ${fmt(r.nut.kcal*e.m)} kcal · ${fmt(r.nut.p*e.m)} g P ${statusBadge(st)}${c.ok?"":` <span class="badge b-bad">⚠ ${esc(c.why.join(", "))}</span>`}</small></span>
-              <span class="stepper"><button data-em="${p.id}|${i}|-" aria-label="Mai puțin">−</button><output title="porții">×${fmtM(e.m)}</output><button data-em="${p.id}|${i}|+" aria-label="Mai mult">+</button></span>
+              <span class="stepper"><button data-em="${p.id}|${i}|-" aria-label="Mai puțin">−</button>${numOut(e.m,"em|"+p.id+"|"+i,"×"+fmtM(e.m),{min:.05,max:50})}<button data-em="${p.id}|${i}|+" aria-label="Mai mult">+</button></span>
               <button class="tiny" data-edel="${p.id}|${i}" aria-label="Scoate">×</button></div>`}).join(""):`<span class="small muted">Nimic încă.</span>`}
           ${adding===p.id+"|b"?`<div class="pick">${avail.length?avail.slice().reverse().map(s=>PL().batches.filter(b=>b.sid===s.id).map(b=>{const r=R[b.rid],st=freshness(b,d),c=compat(r,p);
               return `<button data-eadd="${p.id}|${b.id}" ${st==="bad"?'style="opacity:.6"':""}>${thumb(r,"dot-th",13)}<span class="grow">${esc(r.name)} <span class="small muted">· ${esc(sesName(s))}</span></span>${statusBadge(st)}${c.ok?"":'<span class="badge b-bad">⚠</span>'}</button>`}).join("")).join(""):`<span class="small muted">Nu se gătește nimic înainte de ziua asta.</span>`}</div>`:""}
           ${adding===p.id+"|c"?`<div class="pick">${PRESETS.map((x,k)=>`<button data-epre="${p.id}|${k}">${spr("note",16)}<span class="grow">${x.n}</span><span class="small muted">~${x.kcal} kcal</span></button>`).join("")}
               <div class="fields"><div class="field"><label for="cn">Altceva</label><input id="cn" placeholder="ex. Pizza"></div><div class="field"><label for="ck">kcal</label><input id="ck" type="number" inputmode="numeric" placeholder="600"></div><div class="field"><label for="cp">Proteine (g)</label><input id="cp" type="number" inputmode="numeric" placeholder="25"></div></div>
               <button class="btn sm" data-ecust="${p.id}">Adaugă</button></div>`:""}
+          ${adding===p.id+"|r"?`<input class="search" data-erq placeholder="Caută o rețetă" value="${esc(rq)}" aria-label="Caută o rețetă"><div class="pick" style="max-height:280px;overflow:auto">${RECIPES.filter(r=>!qq||norm(r.name).includes(qq)).slice().sort((a,b)=>a.name.localeCompare(b.name,"ro")).map(r=>{const c=compat(r,p);
+              return `<button data-erec="${p.id}|${r.id}">${thumb(r,"dot-th",13)}<span class="grow">${esc(r.name)}</span><span class="small muted">${fmt(r.nut.kcal)} kcal</span>${c.ok?"":'<span class="badge b-bad">⚠</span>'}</button>`}).join("")}</div>
+              <p class="tiny-t muted" style="margin:0">Se adaugă și la „Ce gătim”, în ultima zi de gătit dinainte (porțiile se pun singure).</p>`:""}
           ${adding===p.id+"|s"?`<div class="pick">${FOODS.length?foodGroups().map(g=>FOODS.filter(f=>inGrp(f,g.id)).map(f=>`<button data-esimple="${p.id}|${f.id}">${spr(f.s,16)}<span class="grow">${esc(f.n)} <span class="small muted">· ${esc(f.lbl||amt(f.g,f.u))}</span></span><span class="small muted">${fmt(f.nut.kcal)} kcal</span></button>`).join("")).join(""):`<span class="small muted">Nu ai mâncăruri simple. Adaugă-le în tabul Simple.</span>`}</div>`:""}
-          <div class="row" style="gap:6px"><button class="btn sm paper" data-eopen="${p.id}|b">+ din ce gătim</button><button class="btn sm paper" data-eopen="${p.id}|s">+ simplu (fruct, gustare)</button><button class="btn sm paper" data-eopen="${p.id}|c">+ altceva</button>
+          <div class="row" style="gap:6px"><button class="btn sm paper" data-eopen="${p.id}|b">+ din ce gătim</button><button class="btn sm paper" data-eopen="${p.id}|r">+ altă rețetă</button><button class="btn sm paper" data-eopen="${p.id}|s">+ simplu (fruct, gustare)</button><button class="btn sm paper" data-eopen="${p.id}|c">+ altceva</button>
             ${S.people.length>1&&es.length?`<button class="tiny" data-ecopy="${p.id}">Copiază la ceilalți</button>`:""}</div>
         </div>`}).join("")}
       <p class="small muted" style="margin:0">Porția (×1) e porția standard din rețetă. „Copiază la ceilalți” păstrează felurile și ajustează porțiile după fiecare persoană.</p>
@@ -1314,11 +1376,17 @@ function editSlot(d,sl,onlyPid){
     o.querySelectorAll("[data-eopen]").forEach(b=>b.onclick=()=>{adding=adding===b.dataset.eopen?null:b.dataset.eopen;draw()});
     o.querySelectorAll("[data-eadd]").forEach(b=>b.onclick=()=>{const [pid,bid]=sp(b.dataset.eadd);const p=person(pid),r=R[batchById(bid).rid];
       const m=r4(p.mult*(r.role==="salad"&&entries(d,sl,pid).some(e=>e.b)?.5:1));setEntries(d,sl,pid,[...entries(d,sl,pid),{b:bid,m}]);adding=null;S.sample=false;save();draw()});
+    const erq=o.querySelector("[data-erq]");if(erq)erq.addEventListener("input",()=>{rq=erq.value;const pos=erq.selectionStart;draw();const n=$("#overlay").querySelector("[data-erq]");n.focus();n.setSelectionRange(pos,pos)});
+    o.querySelectorAll("[data-erec]").forEach(b=>b.onclick=()=>{const [pid,rid]=sp(b.dataset.erec);const p=person(pid),ss=sessSorted();
+      const s=ss.filter(x=>x.day<=d).pop()||ss[0];if(!s){toast("Adaugă întâi o zi de gătit");return}
+      let bt=PL().batches.find(x=>x.sid===s.id&&x.rid===rid);if(!bt){bt={id:uid(),rid,sid:s.id,extra:0};PL().batches.push(bt)}
+      setEntries(d,sl,pid,[...entries(d,sl,pid),{b:bt.id,m:r4(p.mult)}]);adding=null;rq="";S.sample=false;save();toast("Gătită în "+sesName(s));draw()});
     o.querySelectorAll("[data-esimple]").forEach(b=>b.onclick=()=>{const [pid,fid]=sp(b.dataset.esimple);const es=entries(d,sl,pid).slice(),ex=es.findIndex(e=>e.s===fid);
       if(ex>=0)es[ex]={...es[ex],m:es[ex].m+1};else es.push({s:fid,m:1});setEntries(d,sl,pid,es);adding=null;save();draw()});
     o.querySelectorAll("[data-epre]").forEach(b=>b.onclick=()=>{const [pid,k]=sp(b.dataset.epre);const x=PRESETS[+k];setEntries(d,sl,pid,[...entries(d,sl,pid),{c:1,...x}]);adding=null;save();draw()});
     o.querySelectorAll("[data-ecust]").forEach(b=>b.onclick=()=>{const pid=b.dataset.ecust;const n=$("#cn").value.trim();if(!n){toast("Scrie ce ai mâncat");return}
       setEntries(d,sl,pid,[...entries(d,sl,pid),{c:1,n,kcal:+$("#ck").value||0,p:+$("#cp").value||0,cb:0,f:0}]);adding=null;save();draw()});
+    NUMSET.em=(pid,i,v)=>{const es=entries(d,sl,pid).slice();es[+i]={...es[+i],m:v};setEntries(d,sl,pid,es);save();draw()};
     o.querySelectorAll("[data-em]").forEach(b=>b.onclick=()=>{const [pid,i,dir]=sp(b.dataset.em);const es=entries(d,sl,pid).slice();const e={...es[+i]};const st=e.s?.5:.25;e.m=Math.max(st,Math.round((e.m+(dir==="+"?st:-st))*4)/4);es[+i]=e;setEntries(d,sl,pid,es);save();draw()});
     o.querySelectorAll("[data-edel]").forEach(b=>b.onclick=()=>{const [pid,i]=sp(b.dataset.edel);const es=entries(d,sl,pid).slice();es.splice(+i,1);setEntries(d,sl,pid,es);save();draw()});
     o.querySelectorAll("[data-ecopy]").forEach(b=>b.onclick=()=>{const src=person(b.dataset.ecopy);const es=entries(d,sl,src.id);
@@ -1336,7 +1404,7 @@ function editCover(pid){
       <p class="small muted" style="margin:0">Bifează, pe zile ale săptămânii, mesele pe care fiecare le mănâncă din ce gătiți. Se aplică oricând începe și oricât durează planul. „Umple automat” pune mâncare doar în căsuțele bifate.</p>
       <div class="row" style="gap:6px">${S.people.map(x=>`<button class="person" data-cp="${x.id}" aria-pressed="${x.id===pid}">${avHTML(x)}<span>${esc(x.name)}</span></button>`).join("")}</div>
       <div style="overflow-x:auto"><table class="covgrid"><thead><tr><th></th>${WK.map(w=>`<th>${DAYS[w]}</th>`).join("")}</tr></thead>
-      <tbody>${SLOTS.map(sl=>`<tr><th style="text-align:right">${sl.n}</th>${WK.map(w=>`<td><input type="checkbox" class="cbx" data-cv="${sl.id}|${w}" ${p.cover[sl.id][w]?"checked":""} aria-label="${sl.n}, ${DAYF[w]}"></td>`).join("")}</tr>`).join("")}</tbody></table></div>
+      <tbody>${pSlots(p).map(sl=>`<tr><th style="text-align:right">${esc(sl.n)}</th>${WK.map(w=>`<td><input type="checkbox" class="cbx" data-cv="${sl.id}|${w}" ${p.cover[sl.id][w]?"checked":""} aria-label="${sl.n}, ${DAYF[w]}"></td>`).join("")}</tr>`).join("")}</tbody></table></div>
       <div class="row" style="gap:6px"><button class="tiny" data-cvp="work">Lu–Vi, toate mesele</button><button class="tiny" data-cvp="lunch">Doar prânz + cină Lu–Vi</button><button class="tiny" data-cvp="all">Toate zilele</button><button class="tiny" data-cvp="none">Nimic</button>
         ${S.people.length>1?`<button class="tiny" data-cvp="copy">La fel pentru toți</button>`:""}</div>
       <div class="row"><button class="btn green" id="cvFill">Salvează și refă calendarul</button><button class="btn paper" data-close>Doar salvează</button></div></div>`);
@@ -1345,8 +1413,8 @@ function editCover(pid){
     o.querySelectorAll("[data-cv]").forEach(c=>c.onchange=()=>{const [s,d]=c.dataset.cv.split("|");p.cover[s][+d]=c.checked?1:0;save()});
     o.querySelectorAll("[data-cvp]").forEach(b=>b.onclick=()=>{const k=b.dataset.cvp;
       if(k==="copy"){for(const x of S.people)x.cover=JSON.parse(JSON.stringify(p.cover))}
-      else for(const sl of SLOTS)for(let wd=0;wd<7;wd++){const work=wd>=1&&wd<=5;
-        p.cover[sl.id][wd]=k==="all"?1:k==="none"?0:k==="work"?(work?1:0):(work&&(sl.id==="pr"||sl.id==="ci")?1:0)}
+      else for(const sl of pSlots(p))for(let wd=0;wd<7;wd++){const work=wd>=1&&wd<=5;
+        p.cover[sl.id][wd]=k==="all"?1:k==="none"?0:k==="work"?(work?1:0):(work&&sl.k==="main"?1:0)}
       save();draw()});
     $("#cvFill").onclick=()=>{fillMeals("all");S.sample=false;save();closeModal();toast("Calendar refăcut")};
   };draw();
@@ -1392,7 +1460,7 @@ function editPerson(pid,isNew){
     <div class="fgroup"><b>Iconiță</b><div class="avpick">${AV.map((a,i)=>`<button data-pav="${a}" aria-pressed="${p.av===a}" aria-label="${AVN[i]}">${spr(a,30)}</button>`).join("")}</div></div>
     <div class="fgroup"><b>Culoare</b><div class="avpick">${[0,1,2,3,4,5].map(i=>`<button data-pci="${i}" aria-pressed="${p.ci===i}" aria-label="Culoarea ${i+1}"><span class="av" style="--pc:var(--pc${i})"></span></button>`).join("")}</div></div>
     <div class="fields">
-      <div class="field"><label for="pm">Porție</label><select id="pm">${[.5,.6,.7,.75,.8,.85,.9,1,1.1,1.2,1.25,1.3,1.4,1.5,1.75,2].map(v=>`<option value="${v}" ${v===+p.mult?"selected":""}>×${fmtM(v)}</option>`).join("")}</select></div>
+      <div class="field"><label for="pm">Porție (×)</label><input id="pm" inputmode="decimal" value="${fmtIn(p.mult)}" list="pmL" placeholder="ex. 1,15"><datalist id="pmL">${[.6,.75,.8,.9,1,1.1,1.2,1.25,1.5].map(v=>`<option value="${fmtIn(v)}">`).join("")}</datalist></div>
       <div class="field"><label for="ptm">Ținta se urmărește</label><select id="ptm"><option value="zi" ${p.tMode!=="sapt"?"selected":""}>în fiecare zi</option><option value="sapt" ${p.tMode==="sapt"?"selected":""}>în medie pe săptămână</option></select></div>
       <div class="field"><label for="pd">Dietă</label><select id="pd">${DIETS.map(x=>`<option value="${x.id}" ${p.diet===x.id?"selected":""}>${x.n}</option>`).join("")}</select></div>
     </div>
@@ -1408,10 +1476,10 @@ function editPerson(pid,isNew){
         <button class="btn sm paper" id="calc" style="margin-top:8px">Calculează</button>
         <p class="tiny-t muted">Estimare grosieră: kcal ≈ kg × activitate (±10% după obiectiv), proteine 1,8 g/kg, grăsimi 25% din kcal, fibre 14 g/1000 kcal, restul carbohidrați. Nu înlocuiește un nutriționist.</p></details>
     </div>
-    <div class="row"><button class="btn green" id="psave">Salvează</button><button class="btn paper" id="pcover">Ce mese acoperim?</button>
+    <div class="row"><button class="btn green" id="psave">Salvează</button><button class="btn paper" id="pcover">Ce mese acoperim?</button><button class="btn paper" id="pmeals">Mesele zilei</button>
       ${S.people.length>1?`<button class="btn red sm" id="pdel">${confirmDel?"Sigur? Apasă din nou":"Șterge persoana"}</button>`:""}</div></div>`);
     const o=$("#overlay");
-    const collect=()=>{p.name=$("#pn").value.trim()||p.name;p.mult=+$("#pm").value;p.tMode=$("#ptm").value;p.diet=$("#pd").value;p.nolac=$("#pl").checked;p.nogl=$("#pg").checked;
+    const collect=()=>{p.name=$("#pn").value.trim()||p.name;p.mult=Math.min(4,Math.max(.1,parseNum($("#pm").value,p.mult)||p.mult));p.tMode=$("#ptm").value;p.diet=$("#pd").value;p.nolac=$("#pl").checked;p.nogl=$("#pg").checked;
       for(const k of ["kcal","p","c","f","fib"])p.t[k]=Math.max(0,+$("#t_"+k).value||0)};
     o.querySelectorAll("[data-pav]").forEach(b=>b.onclick=()=>{collect();p.av=b.dataset.pav;draw()});
     o.querySelectorAll("[data-pci]").forEach(b=>b.onclick=()=>{collect();p.ci=+b.dataset.pci;draw()});
@@ -1420,6 +1488,7 @@ function editPerson(pid,isNew){
       const pr=Math.round(kg*1.8),f=Math.round(kc*.25/9),c=Math.max(0,Math.round((kc-pr*4-f*9)/4));p.t={kcal:kc,p:pr,c,f,fib:Math.round(kc/1000*14)};draw()};
     $("#psave").onclick=()=>{collect();Object.assign(person(pid),p);save();closeModal();toast("Salvat")};
     $("#pcover").onclick=()=>{collect();Object.assign(person(pid),p);save();editCover(p.id)};
+    $("#pmeals").onclick=()=>{collect();Object.assign(person(pid),p);save();mealsEditor(p.id)};
     const del=$("#pdel");if(del)del.onclick=()=>{if(!confirmDel){collect();confirmDel=true;draw();return}S.people=S.people.filter(x=>x.id!==p.id);cleanMeals();save();closeModal();toast("Persoană ștearsă")};
   };draw();
 }
@@ -1446,9 +1515,9 @@ function viewNutPlan(){
   </section>
   <section class="panel" style="margin-top:14px">
     <div class="row between"><h3 class="sec-title" style="margin:0">${esc(cap(dLong(d)))}</h3><span class="row" style="gap:6px"><button class="tiny" data-nd="${Math.max(0,d-1)}" ${d===0?"disabled":""}>◀</button><button class="tiny" data-nd="${Math.min(LEN()-1,d+1)}" ${d>=LEN()-1?"disabled":""}>▶</button></span></div>
-    <div style="display:grid;gap:4px;margin:10px 0">${SLOTS.map(sl=>{const es=entries(d,sl.id,p.id);const sn=slotNut(d,sl.id,p.id);
+    <div style="display:grid;gap:4px;margin:10px 0">${SLOTS.filter(sl=>hasSlot(p,sl.id)||entries(d,sl.id,p.id).length).map(sl=>{const es=entries(d,sl.id,p.id);const sn=slotNut(d,sl.id,p.id);
       return `<div class="meal-line">${spr(sl.s,20)}<div style="min-width:0"><b>${sl.n}</b><div class="small muted">${es.length?es.map(e=>esc(entryName(e))+(e.c?"":" ×"+fmtM(e.m))).join(" + "):"nimic planificat"}</div></div>
-        <div class="row" style="gap:6px;justify-content:flex-end"><span class="small num">${sn.kcal?fmt(sn.kcal)+" kcal · "+fmt(sn.p)+" g P":""}</span><button class="tiny" data-nedit="${d}|${sl.id}">${es.length?"schimbă":"+ adaugă"}</button></div></div>`}).join("")}</div>
+        <div class="row" style="gap:6px;justify-content:flex-end"><span class="small num">${sn.kcal?fmt(sn.kcal)+(hasSlot(p,sl.id)?" / "+fmt(p.t.kcal*shareOf(p,sl.id)):"")+" kcal · "+fmt(sn.p)+" g P":""}</span><button class="tiny" data-nedit="${d}|${sl.id}">${es.length?"schimbă":"+ adaugă"}</button></div></div>`}).join("")}</div>
     <div style="display:grid;gap:8px">
       ${progRow("Calorii",dn.kcal,p.t.kcal,"kcal",`var(--pc${p.ci})`)}
       ${progRow("Proteine",dn.p,p.t.p,"g","var(--mp)")}
@@ -1493,11 +1562,12 @@ function viewList(){
     ${its.map(x=>{const u=itUnit(x),have=x.k?pantryQty(x.k):S.pantry.filter(y=>keyOf(y)===keyOf(x)).reduce((s,y)=>s+y.q,0),st=stepOf(u,x.q);
       return `<div class="check ${x.done?"done":""}"><input type="checkbox" class="cbx" data-chk="${x.id}" ${x.done?"checked":""} aria-label="În coș: ${esc(itName(x))}">
       <span class="what"><b>${esc(itName(x))}</b><small>${x.k&&ING[x.k].cnt?esc(countHint(x.k,x.q))+" · ":""}${have?`ai deja în cămară ${amt(have,u)}`:"nu e în cămară"}</small></span>
-      <span class="amt"><span class="stepper"><button data-q="${x.id}|-${st}" aria-label="Mai puțin">−</button><output style="min-width:64px">${amt(x.q,u)}</output><button data-q="${x.id}|${st}" aria-label="Mai mult">+</button></span><button class="tiny" data-sdel2="${x.id}" aria-label="Șterge">×</button></span></div>`}).join("")}</section>`}).join("")}</div>
+      <span class="amt"><span class="stepper"><button data-q="${x.id}|-${st}" aria-label="Mai puțin">−</button>${numOut(x.q,"sq|"+x.id,amt(x.q,u),{u,st:"min-width:64px"})}<button data-q="${x.id}|${st}" aria-label="Mai mult">+</button></span><button class="tiny" data-sdel2="${x.id}" aria-label="Șterge">×</button></span></div>`}).join("")}</section>`}).join("")}</div>
   <div class="row" style="margin-top:12px"><button class="btn red sm" id="clearList">Golește lista</button><span id="clearAsk"></span></div>`
   :`<div class="panel empty">${spr("basket",44)}<b>Lista e goală</b><span class="muted small">Pune ingredientele din plan (Plan → 3 · Ingrediente) sau adaugă produse de mână.</span></div>`}`;
   const V=$("#view");
   V.querySelectorAll("[data-chk]").forEach(c=>c.onchange=()=>{S.shop.find(x=>x.id===c.dataset.chk).done=c.checked;save();viewList();renderNav()});
+  NUMSET.sq=(id,v)=>{const x=S.shop.find(y=>y.id===id);if(!x)return;x.q=v;if(!v)S.shop=S.shop.filter(y=>y!==x);save();viewList();renderNav()};
   V.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{const [id,dlt]=b.dataset.q.split("|");const x=S.shop.find(y=>y.id===id);x.q=Math.max(0,(+x.q||0)+ +dlt);if(!x.q)S.shop=S.shop.filter(y=>y!==x);save();viewList();renderNav()});
   V.querySelectorAll("[data-sdel2]").forEach(b=>b.onclick=()=>{S.shop=S.shop.filter(y=>y.id!==b.dataset.sdel2);save();viewList();renderNav()});
   $("#addItem").onclick=()=>itemModal("shop");
@@ -1563,11 +1633,11 @@ function portionHTML(b,n){
   const w=+(S.weights[b.id]||0);
   const byP=S.people.map(p=>({p,us:u.filter(x=>x.pid===p.id)})).filter(x=>x.us.length);
   return `<details class="more"><summary>Cum porționezi (${fmtM(n)} porții)</summary><div class="portion" style="margin-top:6px">
-    <div class="pot" role="img" aria-label="Împărțirea oalei pe caserole">${u.map(x=>{const p=person(x.pid);return `<i style="--pc:var(--pc${p.ci});width:${x.e.m/n*100}%" title="${esc(p.name)} · ${esc(dShort(x.d))} ${SLOT[x.sl].n} · ${fmt(x.e.m/n*100)}%">${x.e.m/n>.09?esc(p.name[0]):""}</i>`}).join("")}${b.extra?`<i class="ext" style="width:${b.extra/n*100}%" title="congelator: ${b.extra} porții">❄</i>`:""}</div>
+    <div class="pot" role="img" aria-label="Împărțirea oalei pe caserole">${u.map(x=>{const p=person(x.pid);return `<i style="--pc:var(--pc${p.ci});width:${x.e.m/n*100}%" title="${esc(p.name)} · ${esc(dShort(x.d))} ${esc(slotInfo(x.sl).n)} · ${fmt(x.e.m/n*100)}%">${x.e.m/n>.09?esc(p.name[0]):""}</i>`}).join("")}${b.extra?`<i class="ext" style="width:${b.extra/n*100}%" title="congelator: ${b.extra} porții">❄</i>`:""}</div>
     <div class="row small" style="gap:6px"><label for="w_${b.id}"><b>Cântărește tot ce a ieșit</b> (fără vas):</label><input id="w_${b.id}" data-w="${b.id}" type="number" inputmode="numeric" value="${w||""}" placeholder="g" style="width:90px;border:2px solid var(--wood-d);border-radius:8px;padding:4px 6px;background:var(--panel)"> g
       ${w?`<span class="badge b-ok">o porție standard ≈ ${fmt(w/n)} g</span>`:""}</div>
     <div class="boxes">${byP.map(({p,us})=>`<div class="bx">${avHTML(p,"sm")}<b>${esc(p.name)}</b><span class="small muted">${us.length} ${us.length===1?"caserolă":"caserole"}</span></div>
-      ${us.map(x=>`<div class="bx" style="padding-left:30px"><span class="small">${esc(dShort(x.d))} · ${SLOT[x.sl].n.toLowerCase()}${freshness(b,x.d)==="freeze"?" ❄":""}</span><span class="g small">×${fmtM(x.e.m)} · ${fmt(x.e.m/n*100)}%${w?" · ≈ "+fmt(w*x.e.m/n)+" g":""}</span></div>`).join("")}`).join("")}
+      ${us.map(x=>`<div class="bx" style="padding-left:30px"><span class="small">${esc(dShort(x.d))} · ${esc(slotInfo(x.sl).n.toLowerCase())}${freshness(b,x.d)==="freeze"?" ❄":""}</span><span class="g small">×${fmtM(x.e.m)} · ${fmt(x.e.m/n*100)}%${w?" · ≈ "+fmt(w*x.e.m/n)+" g":""}</span></div>`).join("")}`).join("")}
       ${b.extra?`<div class="bx"><span class="dot-th" style="background:var(--sky-soft)">❄</span><b>Congelator</b><span class="g small">${b.extra} porții · ${fmt(b.extra/n*100)}%${w?" · ≈ "+fmt(w*b.extra/n)+" g":""}</span></div>`:""}</div>
     <p class="tiny-t muted" style="margin:0">Fără cântar: împarte oala în ${fmtM(n)} părți egale (o parte = o porție standard). O caserolă ×1,2 ia o parte și o cincime, una ×0,75 ia trei sferturi de parte. Porțiile marcate ❄ merg direct la congelator.</p>
   </div></details>`;
@@ -1673,7 +1743,7 @@ function viewPantry(){
       <div class="meta">gătit ${new Date(f.date).toLocaleDateString("ro-RO",{weekday:"short",day:"numeric",month:"short"})} · bun până ${new Date(f.date+lim*DAYMS).toLocaleDateString("ro-RO",{weekday:"short",day:"numeric",month:"short"})}
         ${(f.who||[]).filter(person).length?" · pentru "+f.who.filter(person).map(id=>avHTML(person(id),"sm")).join(""):""}</div>
       <div class="ctl"><span class="badge ${cls}">${txt}</span>
-        <span class="stepper"><button data-fp="${f.u}|-" aria-label="Am mâncat o porție">−</button><output>${fmtM(f.portions)}</output><button data-fp="${f.u}|+" aria-label="O porție în plus">+</button></span>
+        <span class="stepper"><button data-fp="${f.u}|-" aria-label="Am mâncat o porție">−</button>${numOut(f.portions,"fp|"+f.u,fmtM(f.portions),{max:100})}<button data-fp="${f.u}|+" aria-label="O porție în plus">+</button></span>
         ${f.where==="frigider"&&r.fz?`<button class="tiny" data-fmove="${f.u}">❄ la congelator</button>`:""}${f.where==="congelator"&&r.fd?`<button class="tiny" data-fmove="${f.u}">scoate la dezghețat</button>`:""}
         <button class="tiny" data-fdel="${f.u}" aria-label="Scoate din cămară">×</button></div></div></div>`};
   const inv=S.pantry.slice();
@@ -1689,7 +1759,7 @@ function viewPantry(){
       <p class="small muted" style="margin:6px 0 4px">Ce aveți deja. Planul le scade din ce trebuie cumpărat, iar „Am terminat” din Gătit le consumă.</p>
       ${inv.length?AISLES.map(a=>{const its=inv.filter(x=>itAisle(x)===a.id).sort((x,y)=>itName(x).localeCompare(itName(y),"ro"));if(!its.length)return"";
         return `<h4 style="margin:12px 0 2px;display:flex;gap:6px;align-items:center">${spr(a.s,18)} ${a.name}</h4>${its.map(x=>{const u=itUnit(x),st=stepOf(u,x.q);return `<div class="check"><span>${x.k&&ING[x.k]?spr((AISLE[ING[x.k].a]||AISLE.altele).s,20):spr("note",20)}</span><span class="what"><b>${esc(itName(x))}</b>${x.k&&ING[x.k].cnt?`<small>${esc(countHint(x.k,x.q))}</small>`:""}</span>
-          <span class="amt"><span class="stepper"><button data-iq="${x.id}|-${st}" aria-label="Mai puțin">−</button><output style="min-width:64px">${amt(x.q,u)}</output><button data-iq="${x.id}|${st}" aria-label="Mai mult">+</button></span><button class="tiny" data-idel="${x.id}" aria-label="Șterge">×</button></span></div>`}).join("")}`}).join("")
+          <span class="amt"><span class="stepper"><button data-iq="${x.id}|-${st}" aria-label="Mai puțin">−</button>${numOut(x.q,"iq|"+x.id,amt(x.q,u),{u,st:"min-width:64px"})}<button data-iq="${x.id}|${st}" aria-label="Mai mult">+</button></span><button class="tiny" data-idel="${x.id}" aria-label="Șterge">×</button></span></div>`}).join("")}`}).join("")
         :`<div class="empty"><span class="muted small">Nimic adăugat. Produsele bifate pe lista de cumpărături se pot muta aici cu un buton.</span></div>`}
     </section>
     <section class="panel"><h3 class="sec-title">Reguli scurte</h3>
@@ -1700,6 +1770,8 @@ function viewPantry(){
         <li>Miros, aspect sau gust ciudat: aruncați, indiferent de dată.</li></ul></section>
   </div>`;
   const V=$("#view"),find=u=>S.boxes.find(f=>f.u===u);
+  NUMSET.fp=(u,v)=>{const f=find(u);if(!f)return;f.portions=v;if(v<=0)S.boxes=S.boxes.filter(x=>x!==f);save();viewPantry();renderNav()};
+  NUMSET.iq=(id,v)=>{const x=S.pantry.find(y=>y.id===id);if(!x)return;x.q=v;if(!v)S.pantry=S.pantry.filter(y=>y!==x);save();viewPantry()};
   V.querySelectorAll("[data-fp]").forEach(b=>b.onclick=()=>{const [u,dir]=b.dataset.fp.split("|");const f=find(u);f.portions=Math.round((f.portions+(dir==="+"?1:-1))*100)/100;if(f.portions<=0)S.boxes=S.boxes.filter(x=>x!==f);save();viewPantry();renderNav()});
   V.querySelectorAll("[data-fmove]").forEach(b=>b.onclick=()=>{const f=find(b.dataset.fmove);if(f.where==="frigider"){f.where="congelator";f.date=today()}else{f.where="frigider";f.date=today()-Math.max(0,R[f.rid].fd-2)*DAYMS}save();viewPantry();renderNav()});
   V.querySelectorAll("[data-fdel]").forEach(b=>b.onclick=()=>{S.boxes=S.boxes.filter(x=>x.u!==b.dataset.fdel);save();viewPantry();renderNav()});
@@ -2293,15 +2365,15 @@ function foodEditor(fid){
   };draw();
 }
 function foodToPlan(fid){const f=FOOD[fid];if(!f)return;
-  let pids=new Set(S.people.map(p=>p.id)),sl="gu",days=new Set(DAYIX().filter(d=>S.people.some(p=>cov(p,"gu",d)))),m=1;
+  let pids=new Set(S.people.map(p=>p.id)),sl=(activeSlots().find(s=>s.k==="snack")||activeSlots()[0]||SLOTS[0]).id,days=new Set(DAYIX().filter(d=>S.people.some(p=>cov(p,sl,d)))),m=1;
   if(!days.size)days=new Set(DAYIX());modalCtx=()=>draw();
   const draw=()=>{const n=pids.size*days.size;
     openModal(`<div class="sheet-h"><h2>${spr(f.s,22)} ${esc(f.n)} în plan</h2>${xbtn()}</div><div class="sheet-b">
       <div class="fgroup"><b>Cine</b><div class="row" style="gap:6px">${S.people.map(p=>`<button class="person" data-tp="${p.id}" aria-pressed="${pids.has(p.id)}">${avHTML(p)}<span>${esc(p.name)}</span></button>`).join("")}</div></div>
-      <div class="fgroup"><b>La ce masă</b><div class="seg">${SLOTS.map(s=>`<button class="chip" data-ts="${s.id}" aria-pressed="${s.id===sl}">${spr(s.s,16)} ${s.n}</button>`).join("")}</div></div>
+      <div class="fgroup"><b>La ce masă</b><div class="seg">${activeSlots().map(s=>`<button class="chip" data-ts="${s.id}" aria-pressed="${s.id===sl}">${spr(s.s,16)} ${esc(s.n)}</button>`).join("")}</div></div>
       <div class="fgroup"><b>În ce zile</b><div class="seg">${DAYIX().map(d=>`<button class="chip" data-td="${d}" aria-pressed="${days.has(d)}">${esc(cap(dShort(d)))}</button>`).join("")}</div>
         <div class="row" style="gap:6px;margin-top:4px"><button class="tiny" id="tdAll">toate</button><button class="tiny" id="tdWork">Lu–Vi</button><button class="tiny" id="tdNone">niciuna</button></div></div>
-      <div class="row"><b class="small">Câte porții</b><span class="stepper"><button id="tm" aria-label="Mai puțin">−</button><output>×${fmtM(m)}</output><button id="tpl" aria-label="Mai mult">+</button></span><span class="small muted">= ${amt(f.g*m,f.u)} · ${fmt(f.nut.kcal*m)} kcal</span></div>
+      <div class="row"><b class="small">Câte porții</b><span class="stepper"><button id="tm" aria-label="Mai puțin">−</button>${numOut(m,"tm","×"+fmtM(m),{min:.05,max:20})}<button id="tpl" aria-label="Mai mult">+</button></span><span class="small muted">= ${amt(f.g*m,f.u)} · ${fmt(f.nut.kcal*m)} kcal</span></div>
       <p class="small muted" style="margin:0">Dacă există deja în căsuța aceea, i se schimbă doar cantitatea.</p>
       <div class="row"><button class="btn green" id="tOk" ${n?"":"disabled"}>Pune în ${n} ${n===1?"căsuță":"căsuțe"}</button></div></div>`);
     const o=$("#overlay");
@@ -2310,6 +2382,7 @@ function foodToPlan(fid){const f=FOOD[fid];if(!f)return;
     o.querySelectorAll("[data-td]").forEach(b=>b.onclick=()=>{tog(days,+b.dataset.td);draw()});
     $("#tdAll").onclick=()=>{days=new Set(DAYIX());draw()};$("#tdNone").onclick=()=>{days=new Set();draw()};
     $("#tdWork").onclick=()=>{days=new Set(DAYIX().filter(d=>{const w=dayDate(d).getDay();return w>=1&&w<=5}));draw()};
+    NUMSET.tm=v=>{m=v;draw()};
     $("#tm").onclick=()=>{m=Math.max(.5,m-.5);draw()};$("#tpl").onclick=()=>{m=Math.min(10,m+.5);draw()};
     $("#tOk").onclick=()=>{for(const d of days)for(const pid of pids){const es=entries(d,sl,pid).slice(),i=es.findIndex(e=>e.s===fid);if(i>=0)es[i]={...es[i],m};else es.push({s:fid,m});setEntries(d,sl,pid,es)}
       S.sample=false;save();closeModal();toast(`${f.n}: pus în ${pids.size*days.size} ${pids.size*days.size===1?"căsuță":"căsuțe"}`)};
@@ -2384,10 +2457,18 @@ function colManager(){let open=null,ask=null;modalCtx=()=>draw();
 
 /* ================= Meniul planului: ce intră în fiecare masă ================= */
 /* M = {md:[comp], pr:[comp], ci:"pr" | [comp], gu:[comp]}; comp = {t:"c" (categorie de rețete) | "f" (grupă de simple), id, v (variante; 0 = alta în fiecare zi)} */
-function defMenu(){const C=(role,v)=>{const c=CATS.find(x=>x.role===role);return c?[{t:"c",id:c.id,v}]:[]};
-  return{md:C("md",1),pr:[...C("main",2),...C("side",1),...C("salad",1)],ci:"pr",gu:C("snack",1)}}
-const menuG=()=>S.menu||defMenu();
-const menuOf=s=>s&&s.menu?s.menu:menuG();
+/* meniul implicit, pe felul fiecărei mese; prima masă principală are rețetele ei, celelalte „la fel ca” ea */
+function slotDefault(sl){const C=(role,v)=>{const c=CATS.find(x=>x.role===role);return c?[{t:"c",id:c.id,v}]:[]};
+  if(sl.k==="md")return C("md",1);if(sl.k==="snack")return C("snack",1);
+  const first=SLOTS.find(x=>x.k==="main");return first&&first.id!==sl.id?first.id:[...C("main",2),...C("side",1),...C("salad",1)]}
+function normMenu(M0){const out={};for(const sl of SLOTS){const v=M0&&M0[sl.id];
+    if(typeof v==="string"&&SLOT[v]&&v!==sl.id&&Array.isArray(M0[v]))out[sl.id]=v;else if(Array.isArray(v))out[sl.id]=v.filter(c=>c&&c.t&&c.id);else out[sl.id]=null}
+  for(const sl of SLOTS)if(out[sl.id]===null){const d=slotDefault(sl);out[sl.id]=typeof d==="string"&&!Array.isArray(out[d])?JSON.parse(JSON.stringify(slotDefault(SLOT[d]))):d}
+  for(const sl of SLOTS){const v=out[sl.id];if(typeof v==="string"&&!Array.isArray(out[v]))out[sl.id]=[]}
+  return out}
+function defMenu(){return normMenu(null)}
+const menuG=()=>normMenu(S.menu);
+const menuOf=s=>s&&s.menu?normMenu(s.menu):menuG();
 const compPool=c=>c.t==="k"?RECIPES.filter(r=>colHas(c.id,r.id)):c.t==="f"?FOODS.filter(f=>inGrp(f,c.id)):RECIPES.filter(r=>r.cats.includes(c.id));
 const compName=c=>c.t==="k"?"Colecția: "+((colById(c.id)||{}).n||"ștearsă"):c.t==="f"?"Simple: "+((FG[c.id]||{}).n||"grupă ștearsă").toLowerCase():((CAT[c.id]||{}).name||"categorie ștearsă");
 const compIcon=c=>c.t==="k"?((colById(c.id)||{}).s||"note"):c.t==="f"?((FG[c.id]||{}).s||"note"):((CAT[c.id]||{}).s||"note");
@@ -2395,9 +2476,9 @@ const varLabel=v=>+v===1?"aceeași":+v>1?v+" variante":"alta în fiecare zi";
 const foodR=f=>({x:(ING[f.k]||{}).x||"",ing:[{k:f.k}]});
 const okFor=(it,p,isF)=>compat(isF?foodR(it):it,p).ok;
 function rng32(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-function menuSummary(M){return SLOTS.map(sl=>{const v=M[sl.id];
-  const txt=typeof v==="string"?`<span class="muted">la fel ca ${SLOT[v].n.toLowerCase()}ul</span>`:Array.isArray(v)&&v.length?`<span class="mcs">${v.map(c=>`<span class="mc">${spr(compIcon(c),16)} ${esc(compName(c))} <span class="muted">· ${varLabel(c.v)}</span></span>`).join("")}</span>`:`<span class="muted">nimic</span>`;
-  return `<div class="msum"><b>${spr(sl.s,16)} ${sl.n}</b><span>${txt}</span></div>`}).join("")}
+function menuSummary(M){return activeSlots().map(sl=>{const v=M[sl.id];
+  const txt=typeof v==="string"?`<span class="muted">la fel ca ${esc(SLOT[v].n.toLowerCase())}</span>`:Array.isArray(v)&&v.length?`<span class="mcs">${v.map(c=>`<span class="mc">${spr(compIcon(c),16)} ${esc(compName(c))} <span class="muted">· ${varLabel(c.v)}</span></span>`).join("")}</span>`:`<span class="muted">nimic</span>`;
+  return `<div class="msum"><b>${spr(sl.s,16)} ${esc(sl.n)}</b><span>${txt}</span></div>`}).join("")}
 
 /* Un plan aleatoriu pentru o zi de gătit (o încercare) */
 function genSession(s,rand,used){
@@ -2416,7 +2497,7 @@ function genSession(s,rand,used){
     out.forEach(x=>sess.add(x.id));
     if(!isF)out.sort((a,b)=>(a.fd+(a.fz>0?3:0))-(b.fd+(b.fz>0?3:0)));
     return out};
-  for(const sl of ["md","pr","ci","gu"]){
+  for(const sl of SLOTS.map(x=>x.id)){
     const base=typeof M[sl]==="string"?M[sl]:sl,comps=M[base];if(!Array.isArray(comps)||!comps.length)continue;
     const diners=[];for(const d of days)for(const p of S.people)if(cov(p,sl,d))diners.push({d,p});if(!diners.length)continue;
     const dl=[...new Set(diners.map(x=>x.d))],ppl=[...new Set(diners.map(x=>x.p))];
@@ -2461,19 +2542,22 @@ function menuEditor(sid){const s=sid?sesById(sid):null;let M=JSON.parse(JSON.str
     openModal(`<div class="sheet-h"><h2>${s?"Meniul pentru "+esc(sesName(s)):"Meniul planului"}</h2>${xbtn()}</div><div class="sheet-b">
       <p class="small muted" style="margin:0">Alege ce intră în fiecare masă și câte rețete diferite gătiți din fiecare. Ex.: 4 prânzuri cu „2 variante” = 2 rețete, câte 2 porții; cu „aceeași” = o rețetă de 4 porții. Aplicația alege la întâmplare din ce aveți în categorii (favoritele mai des), încearcă vreo 30 de combinații și o păstrează pe cea mai apropiată de țintele fiecăruia, cu porțiile potrivite.</p>
       ${s?`<p class="small" style="margin:0">Ziua asta acoperă ${esc(sessRange(s).map(d=>dShort(d)).join(", "))}.</p>`:""}
-      ${SLOTS.map(sl=>{const v=M[sl.id],same=typeof v==="string",comps=same?[]:(v||[]);
-        return `<section class="menuslot"><div class="row between"><b>${spr(sl.s,18)} ${sl.n}</b>${s?`<span class="small muted">${meals(sl.id)} ${meals(sl.id)===1?"masă":"mese"} de acoperit</span>`:""}</div>
-        ${sl.id==="ci"?`<div class="seg"><button class="chip" data-msame="pr" aria-pressed="${same}">La fel ca prânzul</button><button class="chip" data-msame="" aria-pressed="${!same}">Altceva</button></div>`:""}
-        ${same?`<p class="tiny-t muted" style="margin:0">Cina vine din aceleași rețete ca prânzul (gătiți o dată pentru amândouă). Cu mai multe variante, seara vine altă variantă decât la prânz.</p>`
+      ${activeSlots().map(sl=>{const v=M[sl.id],same=typeof v==="string",comps=same?[]:(v||[]);
+        const others=activeSlots().filter(o=>o.id!==sl.id&&Array.isArray(M[o.id])&&M[o.id].some(c=>c.t!=="f"));
+        return `<section class="menuslot"><div class="row between"><b>${spr(sl.s,18)} ${esc(sl.n)}</b>${s?`<span class="small muted">${meals(sl.id)} ${meals(sl.id)===1?"masă":"mese"} de acoperit</span>`:""}</div>
+        ${others.length?`<div class="seg"><button class="chip" data-msame="${sl.id}|" aria-pressed="${!same}">Rețetele ei</button>${others.map(o=>`<button class="chip" data-msame="${sl.id}|${o.id}" aria-pressed="${v===o.id}">La fel ca ${esc(o.n.toLowerCase())}</button>`).join("")}</div>`:""}
+        ${same?`<p class="tiny-t muted" style="margin:0">Vine din aceleași rețete ca ${esc(SLOT[v].n.toLowerCase())} (gătiți o dată pentru amândouă). Cu mai multe variante, aici vine altă variantă decât acolo, în aceeași zi.</p>`
         :`${comps.map((c,i)=>{const n=compPool(c).length;return `<div class="mrow">${spr(compIcon(c),20)}<span class="grow" style="min-width:0">${esc(compName(c))} <span class="tiny-t muted">· ${n} ${c.t==="f"?"simple":"rețete"}</span>${n?"":` <span class="badge b-warn">nu ai nimic aici</span>`}</span>
             <select data-mv="${sl.id}|${i}" aria-label="Câte variante">${[[1,"aceeași"],[2,"2 variante"],[3,"3 variante"],[4,"4 variante"],[0,"alta în fiecare zi"]].map(([x,l])=>`<option value="${x}" ${+c.v===x?"selected":""}>${l}</option>`).join("")}</select>
             <button class="tiny" data-mx="${sl.id}|${i}" aria-label="Scoate">×</button></div>`}).join("")||`<p class="tiny-t muted" style="margin:0">Nimic: masa asta nu se gătește (o poți completa de mână în calendar).</p>`}
-          <select class="sel" data-madd="${sl.id}" aria-label="Adaugă în ${sl.n}"><option value="">+ adaugă la ${sl.n.toLowerCase()}…</option><optgroup label="Categorii de rețete">${CATS.map(c=>`<option value="c|${c.id}">${esc(c.name)}</option>`).join("")}</optgroup><optgroup label="Colecții de rețete">${colList().map(c=>`<option value="k|${c.id}">${esc(c.n)}</option>`).join("")}</optgroup><optgroup label="Mâncăruri simple">${FGROUPS.map(g=>`<option value="f|${g.id}">${esc(g.n)}</option>`).join("")}</optgroup></select>`}
+          <select class="sel" data-madd="${sl.id}" aria-label="Adaugă în ${esc(sl.n)}"><option value="">+ adaugă la ${esc(sl.n.toLowerCase())}…</option><optgroup label="Categorii de rețete">${CATS.map(c=>`<option value="c|${c.id}">${esc(c.name)}</option>`).join("")}</optgroup><optgroup label="Colecții de rețete">${colList().map(c=>`<option value="k|${c.id}">${esc(c.n)}</option>`).join("")}</optgroup><optgroup label="Mâncăruri simple">${FGROUPS.map(g=>`<option value="f|${g.id}">${esc(g.n)}</option>`).join("")}</optgroup></select>`}
         </section>`}).join("")}
       <div class="row">${s?`<button class="btn green" id="mGen">Salvează și generează ziua asta</button><button class="btn paper" id="mSave">Doar salvează</button>${s.menu?`<button class="btn paper sm" id="mGen0">Folosește meniul general</button>`:""}`
         :`<button class="btn green" id="mGen">Salvează și fă plan nou</button><button class="btn paper" id="mSave">Doar salvează</button><button class="btn paper sm" id="mReset">Meniul de bază</button>`}</div></div>`);
     const o=$("#overlay");o.scrollTop=sc;
-    o.querySelectorAll("[data-msame]").forEach(b=>b.onclick=()=>{M.ci=b.dataset.msame?"pr":JSON.parse(JSON.stringify(Array.isArray(M.pr)?M.pr:[]));draw()});
+    o.querySelectorAll("[data-msame]").forEach(b=>b.onclick=()=>{const [sl,ref]=b.dataset.msame.split("|");
+      if(ref){for(const x of SLOTS)if(M[x.id]===sl)M[x.id]=JSON.parse(JSON.stringify(M[sl]));M[sl]=ref}
+      else if(typeof M[sl]==="string")M[sl]=JSON.parse(JSON.stringify(M[M[sl]]||[]));draw()});
     o.querySelectorAll("[data-mv]").forEach(x=>x.onchange=()=>{const [sl,i]=x.dataset.mv.split("|");M[sl][+i].v=+x.value});
     o.querySelectorAll("[data-mx]").forEach(b=>b.onclick=()=>{const [sl,i]=b.dataset.mx.split("|");M[sl].splice(+i,1);draw()});
     o.querySelectorAll("[data-madd]").forEach(x=>x.onchange=()=>{if(!x.value)return;const [t,id]=x.value.split("|"),sl=x.dataset.madd;if(!Array.isArray(M[sl]))M[sl]=[];M[sl].push({t,id,v:t==="f"?0:1});draw()});
@@ -2501,7 +2585,8 @@ function planItem(e){
   if(e.l)return JSON.parse(JSON.stringify(e));return null}
 function slotState(ds,pid,sl){const L=logOf(ds,pid,sl),pl=planE(ds,sl,pid);
   if(!L)return{st:pl.length?"pend":"none",pl,eat:[]};return{st:L.st,pl,eat:L.st==="skip"?[]:L.it||[],L}}
-function logNut(ds,pid){const eat=ZN(),pend=ZN();for(const sl of SLOTS){const x=slotState(ds,pid,sl.id);for(const e of x.eat)addN(eat,entryNut(e));if(x.st==="pend")for(const e of x.pl)addN(pend,entryNut(e))}return{eat,pend}}
+const logSlots=(ds,pid)=>[...new Set([...SLOTS.map(x=>x.id),...Object.keys((S.log[ds]||{})[pid]||{}).filter(k=>k!=="ex"),"ex"])];
+function logNut(ds,pid){const eat=ZN(),pend=ZN();for(const sl of logSlots(ds,pid).map(id=>({id}))){const x=slotState(ds,pid,sl.id);for(const e of x.eat)addN(eat,entryNut(e));if(x.st==="pend")for(const e of x.pl)addN(pend,entryNut(e))}return{eat,pend}}
 function eatenKcal(ds,pid,d){if(!dayLogged(ds,pid))return dayNut(pid,d).kcal;const n=logNut(ds,pid);return n.eat.kcal+n.pend.kcal}
 function applyUse(items){const u=[];for(const it of items){const m=+it.m||0;if(!m||!it.ref)continue;
   if(it.ref.r){const bx=S.boxes.filter(f=>f.rid===it.ref.r&&f.portions>0).sort((a,b)=>(a.where==="frigider"?0:1)-(b.where==="frigider"?0:1)||a.date-b.date)[0];
@@ -2522,16 +2607,17 @@ function progRow2(label,eat,pend,target,unit,sw){const tot=eat+pend,sc=v=>Math.m
 const LST={pend:["b-warn","planificat"],ok:["b-ok","✓ mâncat"],alt:["b-ice","↺ altceva"],skip:["b-bad","sărit"],none:["",""]};
 function nutHead(){return `<div class="page-title">${spr("heart",30)}<h2>Nutriție</h2></div>
   <div class="segbar" style="margin-bottom:12px"><button data-nv="jurnal" aria-pressed="${S.nutView!=="plan"}">Jurnal · ce am mâncat</button><button data-nv="plan" aria-pressed="${S.nutView==="plan"}">Planul · ce urmează</button></div>
-  <div class="row" style="gap:6px;margin-bottom:12px">${S.people.map(x=>`<button class="person" data-np="${x.id}" aria-pressed="${x.id===S.nutP}">${avHTML(x)}<span>${esc(x.name)}</span></button>`).join("")}</div>`}
+  <div class="row" style="gap:6px;margin-bottom:12px">${S.people.map(x=>`<button class="person" data-np="${x.id}" aria-pressed="${x.id===S.nutP}">${avHTML(x)}<span>${esc(x.name)}</span></button>`).join("")}
+    <button class="chip" id="mealsEdN">${spr("f_plate",14)} Mesele zilei</button></div>`}
 function viewNutrition(){if(!S.nutP||!person(S.nutP))S.nutP=S.people[0].id;(S.nutView==="plan"?viewNutPlan:viewJournal)();
   const V=$("#view");V.querySelectorAll("[data-nv]").forEach(b=>b.onclick=()=>{S.nutView=b.dataset.nv;save();viewNutrition()});
-  V.querySelectorAll("[data-np]").forEach(b=>b.onclick=()=>{S.nutP=b.dataset.np;save();viewNutrition()})}
+  V.querySelectorAll("[data-np]").forEach(b=>b.onclick=()=>{S.nutP=b.dataset.np;save();viewNutrition()});$("#mealsEdN").onclick=()=>mealsEditor(S.nutP)}
 function viewJournal(){
   const p=person(S.nutP),ds=S.jD||todayISO(),td=todayISO();
   const mon=pd(ds);mon.setDate(mon.getDate()-(mon.getDay()+6)%7);
   const week=Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(d.getDate()+i);return iso(d)});
   const wn=week.map(x=>logNut(x,p.id)),max=Math.max(p.t.kcal*1.3,...wn.map(x=>x.eat.kcal+x.pend.kcal))||1;
-  const cur=logNut(ds,p.id),states=SLOTS.map(sl=>({sl,...slotState(ds,p.id,sl.id)}));
+  const cur=logNut(ds,p.id),states=logSlots(ds,p.id).map(id=>({sl:slotInfo(id),...slotState(ds,p.id,id)})).filter(x=>x.sl.id==="ex"||hasSlot(p,x.sl.id)||x.st!=="none");
   const wEat=wn.reduce((a,x)=>a+x.eat.kcal,0),wPend=wn.reduce((a,x,i)=>a+(week[i]>=td?x.pend.kcal:0),0),wPast=wn.reduce((a,x,i)=>a+(week[i]<td?x.pend.kcal:0),0);
   const logged=week.filter(x=>dayLogged(x,p.id)).length,daysLeft=week.filter(x=>x>=td).length;
   const remain=p.t.kcal*7-wEat-wPast;
@@ -2555,15 +2641,17 @@ function viewJournal(){
       ${progRow2("Carbohidrați",cur.eat.c,cur.pend.c,p.t.c,"g","var(--mc)")}
       ${progRow2("Grăsimi",cur.eat.f,cur.pend.f,p.t.f,"g","var(--mf)")}
       ${progRow2("Fibre",cur.eat.fib,cur.pend.fib,p.t.fib,"g","var(--leaf)")}</div>
-    <div class="stack" style="gap:8px">${states.map(({sl,st,pl,eat})=>`<div class="logslot ls-${st}">
-      <div class="row between" style="gap:6px"><b class="row" style="gap:6px">${spr(sl.s,18)} ${sl.n}</b>${LST[st][1]?`<span class="badge ${LST[st][0]}">${LST[st][1]}</span>`:""}</div>
+    <div class="stack" style="gap:8px">${states.map(({sl,st,pl,eat})=>{const ex=sl.id==="ex",tk=ex?0:p.t.kcal*shareOf(p,sl.id),ek=eat.reduce((a,e)=>a+entryNut(e).kcal,0),pk=pl.reduce((a,e)=>a+entryNut(e).kcal,0);
+      return `<div class="logslot ls-${ex&&st!=="none"?"ok":st}${ex?" ls-ex":""}">
+      <div class="row between" style="gap:6px"><b class="row" style="gap:6px">${spr(sl.s,18)} ${esc(sl.n)}${tk||ek?`<span class="small muted" style="font-weight:700">${fmt(st==="pend"?0:ek)}${st==="pend"?` <span class="muted">(+${fmt(pk)})</span>`:""}${tk?" / "+fmt(tk):""} kcal</span>`:""}</b>${ex?(eat.length?`<span class="badge b-ice">în plus</span>`:""):LST[st][1]?`<span class="badge ${LST[st][0]}">${LST[st][1]}</span>`:""}</div>
+      ${ex&&!eat.length?`<p class="tiny-t muted" style="margin:0">Ce ai mâncat în afara meselor: o cafea, ceva ronțăit, un desert.</p>`:""}
       ${pl.length&&st!=="ok"?`<div class="small muted ${st==="alt"||st==="skip"?"strike":""}">Din plan: ${pl.map(e=>esc(entryName(e))+(e.c?"":" ×"+fmtM(e.m))).join(" + ")} · ${fmt(pl.reduce((a,e)=>a+entryNut(e).kcal,0))} kcal</div>`:""}
       ${eat.map((e,i)=>`<div class="ent">${spr(e.ic||"note",16)}<span class="n">${esc(e.n)}<small>${fmt(entryNut(e).kcal)} kcal · ${fmt(entryNut(e).p)} g P</small></span>
-        <span class="stepper"><button data-lm="${sl.id}|${i}|-" aria-label="Mai puțin">−</button><output>×${fmtM(e.m)}</output><button data-lm="${sl.id}|${i}|+" aria-label="Mai mult">+</button></span><button class="tiny" data-lx="${sl.id}|${i}" aria-label="Scoate">×</button></div>`).join("")}
-      <div class="row" style="gap:6px">${st==="pend"?`<button class="btn sm green" data-lok="${sl.id}">✓ Am mâncat</button><button class="btn sm paper" data-ladd="${sl.id}|alt">↺ Altceva</button><button class="btn sm paper" data-lskip="${sl.id}">Am sărit</button>`
+        <span class="stepper"><button data-lm="${sl.id}|${i}|-" aria-label="Mai puțin">−</button>${numOut(e.m,"lm|"+sl.id+"|"+i,"×"+fmtM(e.m),{min:.05,max:50})}<button data-lm="${sl.id}|${i}|+" aria-label="Mai mult">+</button></span><button class="tiny" data-lx="${sl.id}|${i}" aria-label="Scoate">×</button></div>`).join("")}
+      <div class="row" style="gap:6px">${ex?`<button class="btn sm paper" data-ladd="ex|add">+ ${eat.length?"Încă ceva":"Adaugă extra"}</button>${eat.length?`<button class="tiny" data-lundo="ex">golește</button>`:""}`:st==="pend"?`<button class="btn sm green" data-lok="${sl.id}">✓ Am mâncat</button><button class="btn sm paper" data-ladd="${sl.id}|alt">↺ Altceva</button><button class="btn sm paper" data-lskip="${sl.id}">Am sărit</button>`
         :st==="none"?`<button class="btn sm paper" data-ladd="${sl.id}|add">+ Ce am mâncat</button>`
         :st==="skip"?`<button class="btn sm paper" data-ladd="${sl.id}|alt">+ Totuși am mâncat ceva</button><button class="tiny" data-lundo="${sl.id}">anulează</button>`
-        :`<button class="btn sm paper" data-ladd="${sl.id}|add">+ în plus</button><button class="tiny" data-lundo="${sl.id}">anulează</button>`}</div></div>`).join("")}</div>
+        :`<button class="btn sm paper" data-ladd="${sl.id}|add">+ în plus</button><button class="tiny" data-lundo="${sl.id}">anulează</button>`}</div></div>`}).join("")}</div>
     ${states.some(x=>x.st==="pend")?`<div class="row" style="margin-top:10px"><button class="btn sm" id="lAll">✓ Toată ziua ca în plan</button></div>`:""}
     <p class="tiny-t muted" style="margin:10px 0 0">${S.trackInv!==false?"Ce bifezi ca mâncat se scade din cămară (caserole și ingrediente), iar „anulează” pune înapoi. Se schimbă din Setări.":"Scăderea din cămară e oprită (Setări)."} Istoricul rămâne neschimbat chiar dacă schimbi planul sau rețetele.</p>
   </section>`;
@@ -2575,6 +2663,7 @@ function viewJournal(){
   V.querySelectorAll("[data-lskip]").forEach(b=>b.onclick=()=>{writeLog(ds,p.id,b.dataset.lskip,{st:"skip",it:[]});re()});
   V.querySelectorAll("[data-lundo]").forEach(b=>b.onclick=()=>{writeLog(ds,p.id,b.dataset.lundo,null);re()});
   V.querySelectorAll("[data-ladd]").forEach(b=>b.onclick=()=>{const [sl,mode]=b.dataset.ladd.split("|");logAdd(ds,p.id,sl,mode)});
+  NUMSET.lm=(sl,i,v)=>{const L=JSON.parse(JSON.stringify(logOf(ds,p.id,sl)));L.it[+i].m=v;writeLog(ds,p.id,sl,{st:L.st,it:L.it});re()};
   V.querySelectorAll("[data-lm]").forEach(b=>b.onclick=()=>{const [sl,i,dir]=b.dataset.lm.split("|");const L=JSON.parse(JSON.stringify(logOf(ds,p.id,sl)));const e=L.it[+i];const st=e.ref&&e.ref.r?.25:.5;
     e.m=Math.max(st,Math.round((e.m+(dir==="+"?st:-st))*4)/4);writeLog(ds,p.id,sl,{st:L.st,it:L.it});re()});
   V.querySelectorAll("[data-lx]").forEach(b=>b.onclick=()=>{const [sl,i]=b.dataset.lx.split("|");const L=JSON.parse(JSON.stringify(logOf(ds,p.id,sl)));L.it.splice(+i,1);
@@ -2594,10 +2683,10 @@ function logAdd(ds,pid,sl,mode){
     const boxes=[...new Map(S.boxes.filter(b=>R[b.rid]&&b.portions>0).map(b=>[b.rid,b])).values()];
     const rs=RECIPES.filter(r=>!qq||norm(r.name).includes(qq)).slice(0,40);
     const tot=cart.reduce((a,e)=>a+entryNut(e).kcal,0);
-    openModal(`<div class="sheet-h"><div class="small" style="font-weight:800">${spr(SLOT[sl].s,16)} ${SLOT[sl].n.toUpperCase()} · ${esc(dayLabel(ds).toUpperCase())}</div><h2>${mode==="alt"?"Ce ai mâncat în loc?":mode==="add"&&logOf(ds,pid,sl)?"Ce ai mai mâncat?":"Ce ai mâncat?"}</h2>${xbtn()}</div><div class="sheet-b">
+    openModal(`<div class="sheet-h"><div class="small" style="font-weight:800">${spr(slotInfo(sl).s,16)} ${esc(slotInfo(sl).n.toUpperCase())} · ${esc(dayLabel(ds).toUpperCase())}</div><h2>${sl==="ex"?"Ce ai mai mâncat în plus?":mode==="alt"?"Ce ai mâncat în loc?":mode==="add"&&logOf(ds,pid,sl)?"Ce ai mai mâncat?":"Ce ai mâncat?"}</h2>${xbtn()}</div><div class="sheet-b">
       ${S.people.length>1?`<div class="fgroup"><b>Pentru cine</b><div class="row" style="gap:6px">${S.people.map(x=>`<button class="person" data-lw="${x.id}" aria-pressed="${who.has(x.id)}">${avHTML(x)}<span>${esc(x.name)}</span></button>`).join("")}</div></div>`:""}
       ${cart.length?`<div class="cart"><b class="small">Adăugat (${fmt(tot)} kcal${who.size>1?" fiecare":""})</b>${cart.map((e,i)=>`<div class="ent">${spr(e.ic,16)}<span class="n">${esc(e.n)}<small>${fmt(entryNut(e).kcal)} kcal · ${fmt(entryNut(e).p)} g P</small></span>
-        <span class="stepper"><button data-cm="${i}|-" aria-label="Mai puțin">−</button><output>×${fmtM(e.m)}</output><button data-cm="${i}|+" aria-label="Mai mult">+</button></span><button class="tiny" data-cx="${i}" aria-label="Scoate">×</button></div>`).join("")}</div>`:""}
+        <span class="stepper"><button data-cm="${i}|-" aria-label="Mai puțin">−</button>${numOut(e.m,"cm|"+i,"×"+fmtM(e.m),{min:.05,max:50})}<button data-cm="${i}|+" aria-label="Mai mult">+</button></span><button class="tiny" data-cx="${i}" aria-label="Scoate">×</button></div>`).join("")}</div>`:""}
       <div class="segbar" role="group" aria-label="Ce fel"><button data-lt="rec" aria-pressed="${tab==="rec"}">Rețete</button><button data-lt="sim" aria-pressed="${tab==="sim"}">Simple</button><button data-lt="alt" aria-pressed="${tab==="alt"}">Altceva</button></div>
       ${tab==="rec"?`${boxes.length?`<div><b class="small">Din cămară</b><div class="pick" style="margin-top:4px">${boxes.map(b=>{const r=R[b.rid];return `<button data-lar="${r.id}">${thumb(r,"dot-th",14)}<span class="grow">${esc(r.name)}</span><span class="small muted">${fmtM(S.boxes.filter(x=>x.rid===r.id).reduce((a,x)=>a+x.portions,0))} porții</span></button>`}).join("")}</div></div>`:""}
         <input class="search" id="lq" type="search" value="${esc(q)}" placeholder="Caută o rețetă" aria-label="Caută o rețetă">
@@ -2620,6 +2709,7 @@ function logAdd(ds,pid,sl,mode){
     o.querySelectorAll("[data-lar]").forEach(b=>b.onclick=()=>addR(R[b.dataset.lar]));
     o.querySelectorAll("[data-las]").forEach(b=>b.onclick=()=>addS(FOOD[b.dataset.las]));
     o.querySelectorAll("[data-lap]").forEach(b=>b.onclick=()=>addC([...PRESETS,...MORE_PRESETS][+b.dataset.lap]));
+    NUMSET.cm=(i,v)=>{keepCu();cart[+i].m=v;draw()};
     o.querySelectorAll("[data-cm]").forEach(b=>b.onclick=()=>{keepCu();const [i,dir]=b.dataset.cm.split("|");const e=cart[+i],st=e.ref&&e.ref.r?.25:.5;e.m=Math.max(st,Math.round((e.m+(dir==="+"?st:-st))*4)/4);draw()});
     o.querySelectorAll("[data-cx]").forEach(b=>b.onclick=()=>{keepCu();cart.splice(+b.dataset.cx,1);draw()});
     const lq=$("#lq");if(lq)lq.addEventListener("input",()=>{q=lq.value;const pos=lq.selectionStart;draw();const n=$("#lq");n.focus();n.setSelectionRange(pos,pos)});
@@ -2636,6 +2726,57 @@ function logAdd(ds,pid,sl,mode){
         const its=cart.map(e=>{const x=JSON.parse(JSON.stringify(e));if(x.ref&&x.ref.r&&id!==pid)x.m=r4(x.m/me.mult*p.mult);return x});
         if(mode==="alt"||!L||L.st==="skip")writeLog(ds,id,sl,{st:"alt",it:its});else writeLog(ds,id,sl,{st:L.st,it:[...(L.it||[]).map(x=>JSON.parse(JSON.stringify(x))),...its]})}
       save();closeModal();toast("Notat în jurnal")};
+  };draw();
+}
+
+/* ================= Mesele zilei (ca în MyFitnessPal): fiecare persoană alege ce mese are și cum își împarte caloriile ================= */
+function mealsEditor(pid){let open=null,ask=null,nn="",nk="snack";modalCtx=()=>draw();
+  const L=()=>S.slots||(S.slots=SLOTS.map(s=>({...s})));
+  const commit=()=>{rebuildLib();fixPeople();cleanMeals();save()};
+  const draw=()=>{const p=person(pid)||S.people[0];pid=p.id;const sc=$("#overlay").scrollTop;
+    const tot=pSlots(p).reduce((a,s)=>a+(+p.split[s.id]||0),0);
+    openModal(`<div class="sheet-h"><h2>Mesele zilei</h2>${xbtn()}</div><div class="sheet-b">
+      ${S.people.length>1?`<div class="row" style="gap:6px">${S.people.map(x=>`<button class="person" data-mp="${x.id}" aria-pressed="${x.id===pid}">${avHTML(x)}<span>${esc(x.name)}</span></button>`).join("")}</div>`:""}
+      <p class="small muted" style="margin:0">Cum își împarte ${esc(p.name)} ziua: ce mese are și ce parte din ținta de ${fmt(p.t.kcal)} kcal revine fiecăreia. Planul potrivește porțiile pe aceste procente, iar jurnalul arată la fiecare masă cât ai mâncat din ce-ți revine. Numele și ordinea meselor sunt comune pentru toată casa; fiecare își bifează mesele lui.</p>
+      <div class="stack" style="gap:8px">${SLOTS.map((sl,i)=>{const on=hasSlot(p,sl.id),users=S.people.filter(x=>hasSlot(x,sl.id)).length;return `<div class="mealrow ${on?"":"off"}">
+        <input type="checkbox" class="cbx" data-mon="${sl.id}" ${on?"checked":""} aria-label="${esc(p.name)} are ${esc(sl.n)}">
+        <button class="iconbtn" data-mico="${i}" aria-label="Schimbă iconița" aria-expanded="${open===i}">${spr(sl.s,24)}</button>
+        <input class="inp" data-mname="${i}" value="${esc(sl.n)}" aria-label="Numele mesei" maxlength="24">
+        <span class="pctbox"><input class="inp" data-mpct="${sl.id}" inputmode="decimal" value="${on?fmtIn(p.split[sl.id]):""}" ${on?"":"disabled"} aria-label="Procent din calorii pentru ${esc(sl.n)}"><span>%</span></span>
+        <span class="row" style="gap:4px;flex-wrap:nowrap"><button class="tiny" data-mu="${i}" ${i?"":"disabled"} aria-label="Mută sus">↑</button><button class="tiny" data-md="${i}" ${i<SLOTS.length-1?"":"disabled"} aria-label="Mută jos">↓</button>
+          <button class="tiny" data-mdel="${i}" ${SLOTS.length>1?"":"disabled"}>${ask===i?"sigur?":"×"}</button></span>
+        <span class="tiny-t muted mmeta">${on?`≈ ${fmt(p.t.kcal*shareOf(p,sl.id))} kcal · `:""}fel: <select data-mkind="${i}" aria-label="Felul mesei">${SKINDS.map(k=>`<option value="${k.id}" ${sl.k===k.id?"selected":""}>${k.n}</option>`).join("")}</select>${users?` · o ${users===1?"are 1 persoană":"au "+users+" persoane"}`:""}${ask===i?" · se șterge pentru toți, cu mesele din calendar":""}</span>
+        ${open===i?`<div style="grid-column:1/-1">${iconGrid(sl.s,"data-mpick")}</div>`:""}</div>`}).join("")}</div>
+      <div class="row between"><span class="small"><b>Total: ${fmt(tot,tot%1?2:0)}%</b> ${Math.abs(tot-100)<.01?"✓":`<span class="muted">· se împarte proporțional</span>`}</span>
+        <span class="row" style="gap:6px">${Math.abs(tot-100)>=.01?`<button class="tiny" id="m100">fă 100%</button>`:""}<button class="tiny" id="mEq">împarte egal</button></span></div>
+      <div class="panel flat" style="padding:10px"><b class="small">Masă nouă</b><div class="row" style="gap:6px;margin-top:6px">
+        <input id="mNew" class="inp" placeholder="ex. Gustare 2, După sală, Brunch" value="${esc(nn)}" style="flex:1;min-width:150px" maxlength="24">
+        <select id="mNewK" class="inp">${SKINDS.map(k=>`<option value="${k.id}" ${nk===k.id?"selected":""}>${k.n}</option>`).join("")}</select><button class="btn sm" id="mAdd">+ Adaugă</button></div>
+        <p class="tiny-t muted" style="margin:6px 0 0">„Felul” spune planului automat ce să pună acolo. Ce mese vin din meal-prep alegi la „Ce mese acoperim?”.</p></div>
+      <div class="row"><button class="btn green" data-close>Gata</button><button class="btn paper sm" id="mCov">Ce mese acoperim?</button>${S.slots?`<button class="btn paper sm" id="mReset">Mesele inițiale</button>`:""}</div></div>`);
+    const o=$("#overlay");o.scrollTop=sc;
+    o.querySelectorAll("[data-mp]").forEach(b=>b.onclick=()=>{pid=b.dataset.mp;open=ask=null;draw()});
+    o.querySelectorAll("[data-mon]").forEach(c=>c.onchange=()=>{const id=c.dataset.mon;if(c.checked)p.split[id]=SLOT[id].pct||10;else{if(pSlots(p).length<=1){toast("Rămâne măcar o masă");c.checked=true;return}delete p.split[id]}commit();draw()});
+    o.querySelectorAll("[data-mpct]").forEach(x=>x.onchange=()=>{const v=parseNum(x.value,+p.split[x.dataset.mpct]||0);if(v==null||v<0){toast("Pune un procent");draw();return}p.split[x.dataset.mpct]=Math.min(100,Math.round(v*100)/100);commit();draw()});
+    o.querySelectorAll("[data-mname]").forEach(x=>x.onchange=()=>{const v=x.value.trim();if(v){L()[+x.dataset.mname].n=v;commit()}});
+    o.querySelectorAll("[data-mkind]").forEach(x=>x.onchange=()=>{L()[+x.dataset.mkind].k=x.value;commit()});
+    o.querySelectorAll("[data-mico]").forEach(b=>b.onclick=()=>{open=open===+b.dataset.mico?null:+b.dataset.mico;draw()});
+    o.querySelectorAll("[data-mpick]").forEach(b=>b.onclick=()=>{L()[open].s=b.dataset.mpick;open=null;commit();draw()});
+    o.querySelectorAll("[data-mu]").forEach(b=>b.onclick=()=>{const a=L(),i=+b.dataset.mu;[a[i-1],a[i]]=[a[i],a[i-1]];commit();draw()});
+    o.querySelectorAll("[data-md]").forEach(b=>b.onclick=()=>{const a=L(),i=+b.dataset.md;[a[i+1],a[i]]=[a[i],a[i+1]];commit();draw()});
+    o.querySelectorAll("[data-mdel]").forEach(b=>b.onclick=()=>{const i=+b.dataset.mdel;if(ask!==i){ask=i;draw();return}const a=L(),id=a[i].id;a.splice(i,1);
+      for(const x of S.people){delete x.split[id];delete x.cover[id]}ask=null;commit();draw()});
+    const m1=$("#m100");if(m1)m1.onclick=()=>{const ss=pSlots(p);let acc=0;ss.forEach((s,j)=>{const v=j<ss.length-1?Math.round(shareOf(p,s.id)*10000)/100:Math.round((100-acc)*100)/100;p.split[s.id]=v;acc+=v});commit();draw()};
+    $("#mEq").onclick=()=>{const ss=pSlots(p);ss.forEach((s,j)=>p.split[s.id]=j<ss.length-1?Math.round(100/ss.length*100)/100:Math.round((100-Math.round(100/ss.length*100)/100*(ss.length-1))*100)/100);commit();draw()};
+    $("#mNew").oninput=e=>{nn=e.target.value};$("#mNewK").onchange=e=>{nk=e.target.value};
+    $("#mAdd").onclick=()=>{const n=nn.trim();if(!n){toast("Scrie numele mesei");return}if(SLOTS.some(s=>norm(s.n)===norm(n))){toast("Există deja o masă cu numele ăsta");return}
+      const id=uniqKey("m-"+slug(n),k=>!!SLOT[k]||k==="ex"),ic=nk==="md"?"egg":nk==="main"?"f_plate":guessIcon(n)==="f_plate"?"cookie":guessIcon(n);
+      const ss=pSlots(p),tot0=ss.reduce((a,x)=>a+(+p.split[x.id]||0),0),add=nk==="main"?25:nk==="md"?20:10;
+      if(Math.abs(tot0-100)<.01){const f=(100-add)/100;let acc=0;ss.forEach(x=>{p.split[x.id]=Math.round(p.split[x.id]*f*100)/100;acc+=p.split[x.id]});L().push({id,n,s:ic,k:nk,pct:add});rebuildLib();p.split[id]=Math.round((100-acc)*100)/100}
+      else{L().push({id,n,s:ic,k:nk,pct:add});rebuildLib();p.split[id]=add}
+      nn="";commit();draw();toast(`Masă adăugată pentru ${p.name}: ${fmtIn(p.split[id])}%, restul s-au micșorat proporțional`)};
+    $("#mCov").onclick=()=>editCover(pid);
+    const mr=$("#mReset");if(mr)mr.onclick=()=>{S.slots=null;rebuildLib();for(const x of S.people)for(const k of Object.keys(x.split))if(!SLOT[k])delete x.split[k];commit();draw()};
   };draw();
 }
 
