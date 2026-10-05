@@ -380,6 +380,15 @@ output.numed:hover,output.numed:focus-visible{background:var(--butter-soft);outl
 output.numed.editing{border-bottom-color:transparent;background:none}
 .numin{width:5.2em;border:2px solid var(--wood-d);border-radius:6px;padding:2px 4px;background:var(--panel);color:var(--ink);text-align:center;font-weight:800;font-size:14px}
 output.numed .nu{font-size:12px;color:var(--muted)}
+.sestog{all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;border-radius:8px;padding:2px 4px 2px 0}
+.sestog:focus-visible{outline:3px solid var(--butter);outline-offset:2px}
+.sestog .chev{display:inline-block;transition:transform .15s;font-size:14px;color:var(--muted);transform:rotate(90deg)}
+.ses.closed .sestog .chev{transform:rotate(0)}
+.ses.closed{padding-bottom:12px}
+.sesmini{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sesmini .mini{display:inline-flex;align-items:center;gap:5px;border:1.5px solid var(--wood-l);border-radius:999px;padding:2px 9px 2px 3px;font-size:13px;cursor:pointer;background:var(--panel);max-width:100%}
+.sesmini .mini span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px}
+@media (prefers-reduced-motion:reduce){.sestog .chev{transition:none}}
 .impr{border:2px solid var(--wood-l);border-radius:10px;padding:8px;background:var(--panel)}
 .impr details summary{cursor:pointer;color:var(--muted)}
 .tip.soft{background:var(--sky-soft);border-color:var(--wood-l)}
@@ -1146,12 +1155,14 @@ function viewPlan(){
   $("#view").innerHTML=`
   <div class="page-title">${spr("cal",30)}<h2>Plan</h2></div>
   <div class="panel flat" style="margin-bottom:14px;display:grid;gap:12px">
-    <div class="weekbar"><button class="iconbtn" id="wkPrev" aria-label="Perioada anterioară"><b>◀</b></button>
-      <div class="grow"><div class="wk">${weekLabel()}</div><div class="small muted">${LEN()} ${LEN()===1?"zi":"zile"} · de ${dLong(0)} până ${dLong(LEN()-1)}</div></div>
-      <button class="iconbtn" id="wkNext" aria-label="Perioada următoare"><b>▶</b></button></div>
+    <div class="weekbar"><button class="iconbtn" id="wkPrev" aria-label="Perioada anterioară" title="Perioada anterioară: de ${esc(dLong(-STEP()))}"><b>◀</b></button>
+      <div class="grow"><div class="wk">${weekLabel()}</div><div class="small muted">${LEN()} ${LEN()===1?"zi":"zile"} · de ${dLong(0)} până ${dLong(LEN()-1)}</div>
+        <div class="tiny-t muted">următoarea începe ${esc(dLong(STEP()))}${PL().ov&&LEN()>1?" (aceeași zi în care se termină asta)":""}</div></div>
+      <button class="iconbtn" id="wkNext" aria-label="Perioada următoare" title="Perioada următoare: de ${esc(dLong(STEP()))}"><b>▶</b></button></div>
     <div class="row" style="gap:10px;align-items:end">
       <div class="field"><label for="pStart">Planul începe</label><input id="pStart" type="date" value="${PL().start}"></div>
       <div class="field"><label for="pLen">Durata</label><select id="pLen">${Array.from({length:21},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===LEN()?"selected":""}>${n} ${n===1?"zi":"zile"}</option>`).join("")}</select></div>
+      <div class="field"><label for="pOv">Următoarea începe</label><select id="pOv"><option value="0" ${PL().ov?"":"selected"}>a doua zi după final</option><option value="1" ${PL().ov?"selected":""}>chiar în ultima zi</option></select></div>
       <button class="btn sm paper" id="pToday">Începe azi</button>
     </div>
     <div class="row" style="gap:6px">${S.people.map(p=>`<button class="person" data-editp="${p.id}">${avHTML(p)}<span>${esc(p.name)}</span><span class="small muted">×${fmtM(p.mult)}</span></button>`).join("")}
@@ -1172,7 +1183,8 @@ function viewPlan(){
   </section>`;
   ({gatim:planCook,cine:planGrid,ingr:planIngr})[pt]();
   $("#view").querySelectorAll("[data-pt]").forEach(b=>b.onclick=()=>{S.planTab=b.dataset.pt;save();viewPlan()});
-  $("#wkPrev").onclick=()=>shiftWeek(-LEN());$("#wkNext").onclick=()=>shiftWeek(LEN());
+  $("#wkPrev").onclick=()=>shiftWeek(-STEP());$("#wkNext").onclick=()=>shiftWeek(STEP());
+  $("#pOv").onchange=e=>{PL().ov=+e.target.value;save();viewPlan();toast(PL().ov?"Perioada următoare începe în ultima zi a celei de acum":"Perioada următoare începe a doua zi")};
   $("#pStart").onchange=e=>{if(/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)){PL().start=e.target.value;save();viewPlan()}};
   $("#pToday").onclick=()=>{PL().start=iso(new Date());save();viewPlan();toast("Planul începe azi")};
   $("#pLen").onchange=e=>setLen(+e.target.value);
@@ -1182,6 +1194,8 @@ function viewPlan(){
   $("#copyAll").onclick=()=>shareText(planText(),"Planul de meal-prep");
   $("#view").querySelectorAll("[data-copyp]").forEach(b=>b.onclick=()=>shareText(personText(b.dataset.copyp),"Planul meu"));
 }
+/* cu câte zile sare ◀ ▶: toată perioada, sau una mai puțin dacă perioadele se leagă în aceeași zi (ex. duminică – duminică) */
+const STEP=()=>Math.max(1,LEN()-(PL().ov&&LEN()>1?1:0));
 function shiftWeek(n){const d=pd(PL().start);d.setDate(d.getDate()+n);PL().start=iso(d);save();viewPlan()}
 function setLen(n){PL().len=Math.min(21,Math.max(1,n));const gone=PL().sessions.filter(s=>s.day>=PL().len).map(s=>s.id);
   PL().sessions=PL().sessions.filter(s=>s.day<PL().len);if(!PL().sessions.length)PL().sessions=[{id:uid(),day:0}];
@@ -1214,11 +1228,16 @@ function planCook(){
     <button class="btn paper" id="addSess">+ Zi de gătit</button>
     <button class="btn paper" id="covEdit">Ce mese acoperim?</button>
   </div>
-  <div class="stack">${ses.map(s=>{const bs=PL().batches.filter(b=>b.sid===s.id);const range=sessRange(s);
-    return `<section class="panel">
-      <div class="row between"><h3 class="sec-title" style="margin:0">${spr("flame",22)} ${esc(sesName(s))}</h3>
+  ${ses.length>1?`<div class="row" style="gap:6px;margin-bottom:8px;justify-content:flex-end"><button class="tiny" id="sesAllC">restrânge tot</button><button class="tiny" id="sesAllO">extinde tot</button></div>`:""}
+  <div class="stack">${ses.map(s=>{const bs=PL().batches.filter(b=>b.sid===s.id);const range=sessRange(s);const closed=!!(S.sesClosed||{})[s.id];
+    const tp=bs.reduce((a,b)=>a+portions(b),0);
+    return `<section class="panel ses${closed?" closed":""}">
+      <div class="row between"><button class="sestog" data-stog="${s.id}" aria-expanded="${!closed}" aria-label="${closed?"Arată":"Ascunde"} ${esc(sesName(s))}"><span class="chev" aria-hidden="true">▸</span><h3 class="sec-title" style="margin:0">${spr("flame",22)} ${esc(sesName(s))}</h3>
+        <span class="small muted">${bs.length} ${bs.length===1?"rețetă":"rețete"} · ${fmtM(tp)} porții</span></button>
         <div class="row" style="gap:6px"><select class="sel" data-sday="${s.id}" aria-label="Ziua de gătit">${DAYIX().map(d=>`<option value="${d}" ${d===s.day?"selected":""}>${esc(cap(dLong(d)))}</option>`).join("")}</select>
         ${ses.length>1?`<button class="tiny" data-sdel="${s.id}">Șterge</button>`:""}</div></div>
+      ${closed?`<div class="sesmini">${bs.map(b=>`<span class="mini" data-openm="${b.rid}|${portions(b)||1}|Porțiile din plan pentru ${esc(sesName(s))}" title="${esc(R[b.rid].name)}">${thumb(R[b.rid],"dot-th",13)}<span>${esc(R[b.rid].name)}</span> <b>${fmtM(portions(b))}</b></span>`).join("")||`<span class="small muted">Nimic de gătit încă.</span>`}</div>
+        ${bs.length?`<div class="row" style="gap:4px;margin-top:6px">${fitBadges(range)}</div>`:""}`:`
       <p class="small muted" style="margin:4px 0 6px">Acoperă mesele din ${range.length>1?esc(dShort(range[0]))+" – "+esc(dShort(range[range.length-1])):esc(dShort(range[0]))}.${s.menu?' <span class="badge b-warn">meniu propriu</span>':""}</p>
       ${bs.length?`<div class="row" style="gap:4px;margin-bottom:10px">${fitBadges(range)}</div>`:""}
       <div class="stack" style="gap:10px">${bs.length?bs.map(b=>{const r=R[b.rid],n=portions(b),u=uses(b);
@@ -1234,7 +1253,7 @@ function planCook(){
           <div class="ctl"><span class="small muted">extra:</span><span class="stepper"><button data-bx="${b.id}" data-d="-" aria-label="Mai puține porții extra">−</button>${numOut(b.extra||0,"bx|"+b.id,fmtM(b.extra||0),{max:100})}<button data-bx="${b.id}" data-d="+" aria-label="Mai multe porții extra">+</button></span>
             <button class="tiny" data-breroll="${b.id}">alta</button><button class="tiny" data-bdel="${b.id}" aria-label="Scoate rețeta">×</button></div>
         </div></div>`}).join(""):`<div class="empty">${spr("basket",34)}<span class="muted small">Nimic de gătit în ziua asta încă.</span></div>`}</div>
-      <div class="row" style="margin-top:10px"><button class="btn sm paper" data-addto="${s.id}">+ Adaugă rețetă</button><button class="btn sm paper" data-sugs="${s.id}">🎲 Generează din nou</button><button class="btn sm paper" data-smenu="${s.id}">Meniul zilei</button></div>
+      <div class="row" style="margin-top:10px"><button class="btn sm paper" data-addto="${s.id}">+ Adaugă rețetă</button><button class="btn sm paper" data-sugs="${s.id}">🎲 Generează din nou</button><button class="btn sm paper" data-smenu="${s.id}">Meniul zilei</button></div>`}
     </section>`}).join("")}</div>
   <div class="panel flat" style="margin-top:14px"><dl class="sumrow" style="margin:0">
     <div class="sum"><dt>Cost estimat</dt><dd>${fmt(tot.cost)} lei</dd></div><div class="sum"><dt>Porții gătite</dt><dd>${fmtM(tot.p)}</dd></div>
@@ -1242,6 +1261,9 @@ function planCook(){
     <p class="small muted" style="margin:8px 0 0">Porțiile vin din calendar („Cine ce mănâncă”): fiecare masă adaugă porția persoanei respective. Pătrățelele colorate arată cine mănâncă din fiecare rețetă și în ce zi (plin = 2+ mese, jumătate = 1 masă).</p></div>`;
   const B=$("#planBody");
   B.closest("main").querySelectorAll("[data-rh]").forEach(b=>b.onclick=()=>setRhythm(+b.dataset.rh));
+  B.querySelectorAll("[data-stog]").forEach(x=>x.onclick=()=>{S.sesClosed=S.sesClosed||{};const id=x.dataset.stog;if(S.sesClosed[id])delete S.sesClosed[id];else S.sesClosed[id]=1;save();viewPlan()});
+  const sc0=$("#sesAllC");if(sc0)sc0.onclick=()=>{S.sesClosed=Object.fromEntries(PL().sessions.map(s=>[s.id,1]));save();viewPlan()};
+  const so0=$("#sesAllO");if(so0)so0.onclick=()=>{S.sesClosed={};save();viewPlan()};
   $("#newPlan").onclick=()=>{generateAll();save();viewPlan();toast("Plan nou făcut")};
   $("#menuEd").onclick=()=>menuEditor(null);
   B.querySelectorAll("[data-smenu]").forEach(x=>x.onclick=()=>menuEditor(x.dataset.smenu));
