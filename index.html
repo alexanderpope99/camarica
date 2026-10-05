@@ -416,6 +416,11 @@ output.numed .nu{font-size:12px;color:var(--muted)}
 .tooltog:focus-visible{outline:3px solid var(--butter)}
 .tooltog span{display:grid;min-width:0}.tooltog b{font-size:14px}.tooltog small{font-size:12px;color:var(--muted)}
 .tool.off b{text-decoration:line-through}
+.cell.sz0{box-shadow:inset 0 4px 0 var(--butter)}.cell.sz1{box-shadow:inset 0 4px 0 var(--sky)}.cell.sz2{box-shadow:inset 0 4px 0 var(--pink)}
+.cell.cstart{border-top-width:3px;border-top-style:solid}
+.cooktag{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:800;background:var(--berry-soft);color:var(--ink);border:1.5px solid var(--berry);border-radius:999px;padding:0 6px 0 3px;margin-bottom:2px;align-self:flex-start}
+.imgprev{border:2px solid var(--wood-l);border-radius:10px;overflow:auto;max-height:52vh;background:#f4e8c9}
+.imgprev img{display:block;width:100%;height:auto;min-width:640px}
 .impr{border:2px solid var(--wood-l);border-radius:10px;padding:8px;background:var(--panel)}
 .impr details summary{cursor:pointer;color:var(--muted)}
 .tip.soft{background:var(--sky-soft);border-color:var(--wood-l)}
@@ -781,7 +786,20 @@ const DAYIX=()=>Array.from({length:LEN()},(_,i)=>i);
 const cov=(p,sl,d)=>hasSlot(p,sl)&&p.cover[sl]?p.cover[sl][dayDate(d).getDay()]:0;
 const weekLabel=()=>{const a=dayDate(0),b=dayDate(LEN()-1);if(LEN()===1)return a.toLocaleDateString("ro-RO",{day:"numeric",month:"short"});return a.getDate()+(a.getMonth()!==b.getMonth()?" "+a.toLocaleDateString("ro-RO",{month:"short"}):"")+" – "+b.toLocaleDateString("ro-RO",{day:"numeric",month:"short"})};
 const sesById=id=>PL().sessions.find(s=>s.id===id);
-const sessSorted=()=>PL().sessions.slice().sort((a,b)=>a.day-b.day);
+/* Momentul gătitului: s.day = ziua în care gătești; prima masă acoperită = s.fo zile după, la masa s.fs (implicit prima masă din zi).
+   Fiecare zi de gătit acoperă mesele de la prima ei masă până înainte de prima masă a următoarei. */
+const NSL=()=>Math.max(1,SLOTS.length);
+const slotIx=sl=>Math.max(0,SLOTS.findIndex(x=>x.id===sl));
+const posOf=(d,sl)=>d*NSL()+slotIx(sl);
+const fromOf=s=>({d:s.day+(+s.fo||0),sl:s.fs&&SLOT[s.fs]?s.fs:(SLOTS[0]||{}).id});
+const fromPos=s=>{const f=fromOf(s);return posOf(f.d,f.sl)};
+const sessSorted=()=>PL().sessions.slice().sort((a,b)=>fromPos(a)-fromPos(b)||a.day-b.day);
+function sessWindow(s){const ss=sessSorted(),i=ss.findIndex(x=>x.id===s.id),a=fromPos(s),b=i<ss.length-1?fromPos(ss[i+1])-1:LEN()*NSL()-1;return[a,Math.max(a,b)]}
+function sessMeals(s){const [a,b]=sessWindow(s),out=[];for(let p=a;p<=b;p++){const d=Math.floor(p/NSL());if(d>=LEN())break;out.push({d,sl:SLOTS[p%NSL()].id})}return out}
+const inSess=(s,d,sl)=>{const [a,b]=sessWindow(s),p=posOf(d,sl);return p>=a&&p<=b};
+const sessAt=(d,sl)=>sessSorted().find(s=>inSess(s,d,sl));
+const isFirstMeal=(s,d,sl)=>posOf(d,sl)===fromPos(s);
+const sesSpan=s=>{const m=sessMeals(s).filter(x=>activeSlots().some(a=>a.id===x.sl));if(!m.length)return"";const f=m[0],l=m[m.length-1],t=x=>dShort(x.d)+" "+slotInfo(x.sl).n.toLowerCase();return m.length===1?t(f):t(f)+" – "+t(l)};
 const sesName=s=>cap(dLong(s.day));
 const batchById=id=>PL().batches.find(b=>b.id===id);
 const mk=(d,sl,pid)=>d+"|"+sl+"|"+pid;
@@ -790,8 +808,8 @@ function setEntries(d,sl,pid,a){const k=mk(d,sl,pid);if(a&&a.length)PL().meals[k
 function* allMeals(){for(const [k,arr] of Object.entries(PL().meals)){const [d,sl,pid]=k.split("|");for(let i=0;i<arr.length;i++)yield{d:+d,sl,pid,e:arr[i],i}}}
 function uses(b){const u=[];for(const x of allMeals())if(x.e.b===b.id)u.push(x);return u.sort((a,c)=>a.d-c.d||SLOTS.findIndex(s=>s.id===a.sl)-SLOTS.findIndex(s=>s.id===c.sl))}
 function portions(b){let t=+b.extra||0;for(const x of allMeals())if(x.e.b===b.id)t+=+x.e.m||0;return Math.round(t*100)/100}
-function freshness(b,d){const s=sesById(b.sid),r=R[b.rid];if(!s)return"bad";const age=d-s.day;if(age<0)return"before";if(age<=r.fd)return"ok";return r.fz>0?"freeze":"bad"}
-function sessRange(s){const ss=sessSorted(),i=ss.findIndex(x=>x.id===s.id);const end=i<ss.length-1?ss[i+1].day-1:LEN()-1;const a=[];for(let d=s.day;d<=Math.max(s.day,end);d++)a.push(d);return a}
+function freshness(b,d,sl){const s=sesById(b.sid),r=R[b.rid];if(!s)return"bad";const age=d-s.day;if(age<0||(sl!=null&&!(+s.fo)&&posOf(d,sl)<fromPos(s)))return"before";if(age<=r.fd)return"ok";return r.fz>0?"freeze":"bad"}
+function sessRange(s){return [...new Set(sessMeals(s).map(x=>x.d))]}
 function cleanMeals(){for(const k of Object.keys(PL().meals)){const a=PL().meals[k].filter(e=>e.c||(e.s&&FOOD[e.s])||(e.b&&batchById(e.b)));if(a.length)PL().meals[k]=a;else delete PL().meals[k]}
   const ids=new Set(S.people.map(p=>p.id));for(const k of Object.keys(PL().meals)){const [d,sl,pid]=k.split("|");if(!ids.has(pid)||+d>=LEN()||!SLOT[sl])delete PL().meals[k]}}
 
@@ -1292,13 +1310,14 @@ function planCook(){
       <div class="row between"><button class="sestog" data-stog="${s.id}" aria-expanded="${!closed}" aria-label="${closed?"Arată":"Ascunde"} ${esc(sesName(s))}"><span class="chev" aria-hidden="true">▸</span><h3 class="sec-title" style="margin:0">${spr("flame",22)} ${esc(sesName(s))}</h3>
         <span class="small muted">${bs.length} ${bs.length===1?"rețetă":"rețete"} · ${fmtM(tp)} porții</span></button>
         <div class="row" style="gap:6px"><select class="sel" data-sday="${s.id}" aria-label="Ziua de gătit">${DAYIX().map(d=>`<option value="${d}" ${d===s.day?"selected":""}>${esc(cap(dLong(d)))}</option>`).join("")}</select>
+        <select class="sel" data-sfrom="${s.id}" aria-label="Prima masă din ce gătești" title="Prima masă din ce gătești">${[0,1,2].flatMap(o=>s.day+o<LEN()?activeSlots().map(sl=>{const f=fromOf(s),on=f.d===s.day+o&&f.sl===sl.id;return `<option value="${o}|${sl.id}" ${on?"selected":""}>${o===0?"de la "+sl.n.toLowerCase():o===1?"de mâine, "+sl.n.toLowerCase():"de poimâine, "+sl.n.toLowerCase()}</option>`}):[]).join("")}</select>
         ${ses.length>1?`<button class="tiny" data-sdel="${s.id}">Șterge</button>`:""}</div></div>
       ${closed?`<div class="sesmini">${bs.map(b=>`<span class="mini" data-openm="${b.rid}|${portions(b)||1}|Porțiile din plan pentru ${esc(sesName(s))}" title="${esc(R[b.rid].name)}">${thumb(R[b.rid],"dot-th",13)}<span>${esc(R[b.rid].name)}</span> <b>${fmtM(portions(b))}</b></span>`).join("")||`<span class="small muted">Nimic de gătit încă.</span>`}</div>
         ${bs.length?`<div class="row" style="gap:4px;margin-top:6px">${fitBadges(range)}</div>`:""}`:`
-      <p class="small muted" style="margin:4px 0 6px">Acoperă mesele din ${range.length>1?esc(dShort(range[0]))+" – "+esc(dShort(range[range.length-1])):esc(dShort(range[0]))}.${s.menu?' <span class="badge b-warn">meniu propriu</span>':""}</p>
+      <p class="small muted" style="margin:4px 0 6px">${spr("flame",14)} Gătești ${esc(dLong(s.day))}${+s.fo?"":", înainte de "+esc(slotInfo(fromOf(s).sl).n.toLowerCase())}. Acoperă mesele <b>${esc(sesSpan(s))||"–"}</b>.${s.menu?' <span class="badge b-warn">meniu propriu</span>':""}</p>
       ${bs.length?`<div class="row" style="gap:4px;margin-bottom:10px">${fitBadges(range)}</div>`:""}
       <div class="stack" style="gap:10px">${bs.length?bs.map(b=>{const r=R[b.rid],n=portions(b),u=uses(b);
-        const fz=u.filter(x=>freshness(b,x.d)==="freeze"),bad=u.filter(x=>["bad","before"].includes(freshness(b,x.d)));
+        const fz=u.filter(x=>freshness(b,x.d,x.sl)==="freeze"),bad=u.filter(x=>["bad","before"].includes(freshness(b,x.d,x.sl)));
         const inc=u.filter(x=>!compat(r,person(x.pid)).ok);
         return `<div class="batch">${thumb(r)}<div style="min-width:0">
           <div class="nm" data-openm="${r.id}|${n||1}|Porțiile din plan pentru ${esc(sesName(s))}">${esc(r.name)}</div>
@@ -1327,6 +1346,8 @@ function planCook(){
   $("#addSess").onclick=()=>{const used=new Set(PL().sessions.map(s=>s.day));const d=DAYIX().find(x=>!used.has(x));if(d===undefined){toast("Ai deja câte o zi de gătit în fiecare zi a planului");return}PL().sessions.push({id:uid(),day:d});save();viewPlan()};
   $("#covEdit").onclick=()=>editCover(S.people[0].id);
   B.querySelectorAll("[data-sday]").forEach(x=>x.onchange=()=>{sesById(x.dataset.sday).day=+x.value;save();viewPlan()});
+  B.querySelectorAll("[data-sfrom]").forEach(x=>x.onchange=()=>{const s=sesById(x.dataset.sfrom),[o,sl]=x.value.split("|");s.fo=+o;s.fs=sl===(activeSlots()[0]||{}).id&&!+o?null:sl;
+    fillMeals("all");S.sample=false;save();viewPlan();toast("Acoperă acum: "+sesSpan(s))});
   B.querySelectorAll("[data-sdel]").forEach(x=>x.onclick=()=>{const id=x.dataset.sdel;PL().sessions=PL().sessions.filter(s=>s.id!==id);PL().batches=PL().batches.filter(b=>b.sid!==id);cleanMeals();save();viewPlan()});
   NUMSET.bx=(id,v)=>{batchById(id).extra=v;save();viewPlan()};
   B.querySelectorAll("[data-bx]").forEach(x=>x.onclick=()=>{const b=batchById(x.dataset.bx);b.extra=Math.max(0,(b.extra||0)+(x.dataset.d==="+"?1:-1));save();viewPlan()});
@@ -1363,7 +1384,7 @@ function planGrid(){
   </div>
   <section class="panel">
     <div class="row between" style="margin-bottom:6px"><p class="small muted" style="margin:0;flex:1;min-width:200px">Atinge o căsuță ca să alegi ce mănâncă fiecare și cât. Căsuțele punctate nu sunt acoperite de meal-prep (le poți completa totuși). ${spr("flame",14)} = zi de gătit.</p>
-      <button class="btn sm paper" id="calFull" title="Deschide orarul pe tot ecranul">⛶ Ecran complet</button></div>
+      <span class="row" style="gap:6px"><button class="btn sm paper" id="calFull" title="Deschide orarul pe tot ecranul">⛶ Ecran complet</button><button class="btn sm paper" id="calImg" title="Salvează sau trimite orarul ca imagine">🖼 Imagine</button></span></div>
     <div class="calwrap">${calHTML(false)}</div>
   </section>
   <section class="panel" style="margin-top:14px">
@@ -1377,28 +1398,30 @@ function planGrid(){
   $("#covEdit2").onclick=()=>editCover(S.people[0].id);
   $("#clearCal").onclick=()=>{PL().meals={};S.sample=false;save();viewPlan()};
   $("#planBody").querySelectorAll("[data-slot]").forEach(b=>b.onclick=()=>{const [d,sl]=b.dataset.slot.split("|");editSlot(+d,sl)});
-  $("#calFull").onclick=openCalFull;
+  $("#calFull").onclick=openCalFull;$("#calImg").onclick=calImageModal;
   if(calFull&&!modalOpen())openCalFull();
 }
 /* Orarul „cine ce mănâncă”: în pagină (iconițe) sau pe tot ecranul (cu numele felurilor) */
-function calHTML(full){const cookDays=new Map(PL().sessions.map(s=>[s.day,s]));
+function calHTML(full){const cookDays=new Map(PL().sessions.map(s=>[s.day,s])),ss=sessSorted();
   return `<table class="cal${full?" calf":""}" style="min-width:${(full?110:80)+LEN()*(full?190:128)}px"><thead><tr><th class="slot"></th>${DAYIX().map(d=>`<th>${esc(cap(dShort(d)))}<br>${cookDays.has(d)?`<span class="cook">${spr("flame",12)} gătim</span>`:"&nbsp;"}</th>`).join("")}</tr></thead>
     <tbody>${activeSlots().map(sl=>`<tr><th class="slot">${spr(sl.s,18)}<br>${esc(sl.n)}</th>${DAYIX().map(d=>{
       const covered=S.people.some(p=>cov(p,sl.id,d));
       const lines=S.people.map(p=>{const es=entries(d,sl.id,p.id);if(!es.length&&!hasSlot(p,sl.id))return"";if(!es.length)return cov(p,sl.id,d)?`<div class="pl">${avHTML(p,"sm")}<span class="gap">gol</span></div>`:"";
-        const warn=es.some(e=>e.b&&(["bad","before"].includes(freshness(batchById(e.b),d))||!compat(R[batchById(e.b).rid],p).ok)),ice=es.some(e=>e.b&&freshness(batchById(e.b),d)==="freeze");
+        const warn=es.some(e=>e.b&&(["bad","before"].includes(freshness(batchById(e.b),d,sl.id))||!compat(R[batchById(e.b).rid],p).ok)),ice=es.some(e=>e.b&&freshness(batchById(e.b),d,sl.id)==="freeze");
         const lg=logOf(iso(dayDate(d)),p.id,sl.id),lm=lg?`<span class="portion-flag" title="jurnal: ${LST[lg.st][1]}">${lg.st==="ok"?"✓":lg.st==="skip"?"⤫":"↺"}</span>`:"";
         const ico=e=>e.c?`<span class="dot-th" style="background:var(--butter-soft)">${spr("note",13)}</span>`:e.s?`<span class="dot-th" style="background:var(--leaf-soft)">${spr(FOOD[e.s].s,13)}</span>`:thumb(R[batchById(e.b).rid],"dot-th",13);
         if(full)return `<div class="plf"><div class="row" style="gap:4px">${avHTML(p,"sm")}<b class="small">${esc(p.name)}</b>${lm}${ice?'<span class="portion-flag" title="din congelator">❄</span>':""}${warn?'<span class="portion-flag" title="verifică">⚠</span>':""}<span class="tiny-t muted" style="margin-left:auto">${fmt(slotNut(d,sl.id,p.id).kcal)} kcal</span></div>
           ${es.map(e=>`<div class="fe">${ico(e)}<span>${esc(entryName(e))}${e.c?"":` <b>×${fmtM(e.m)}</b>`}</span></div>`).join("")}</div>`;
         return `<div class="pl">${avHTML(p,"sm")}${lm}${es.map(e=>`<span title="${esc(entryName(e))}${e.c?"":" ×"+fmtM(e.m)}">${ico(e)}</span>`).join("")}${ice?'<span class="portion-flag" title="din congelator">❄</span>':""}${warn?'<span class="portion-flag" title="verifică">⚠</span>':""}</div>`}).join("");
-      return `<td><button class="cell ${covered?"":"off"}" data-slot="${d}|${sl.id}" aria-label="${esc(cap(dLong(d)))}, ${esc(sl.n)}">${lines||`<span class="gap">—</span>`}</button></td>`}).join("")}</tr>`).join("")}</tbody></table>`}
+      const se=sessAt(d,sl.id),si=se?ss.indexOf(se):-1,start=se&&isFirstMeal(se,d,sl.id);
+      return `<td><button class="cell ${covered?"":"off"}${si>=0?" sz"+(si%3):""}${start?" cstart":""}" data-slot="${d}|${sl.id}" aria-label="${esc(cap(dLong(d)))}, ${esc(sl.n)}${se?", din gătitul de "+esc(dLong(se.day)):""}">${start?`<span class="cooktag">${spr("flame",11)} gătit ${esc(DAYS[dayDate(se.day).getDay()])} ${dayDate(se.day).getDate()}</span>`:""}${lines||`<span class="gap">—</span>`}</button></td>`}).join("")}</tr>`).join("")}</tbody></table>
+    <p class="tiny-t muted" style="margin:6px 0 0">Dunga colorată de sus arată din ce zi de gătit vine mâncarea; ${spr("flame",11)} = prima masă după gătit. Momentul îl schimbi la „Ce gătim”, lângă ziua de gătit.</p>`}
 let calFull=false;
 function openCalFull(){calFull=true;modalCtx=()=>openCalFull();
   openModal(`<div class="sheet-h"><div class="small" style="font-weight:800">${spr("cal",16)} CINE CE MĂNÂNCĂ · ${esc(weekLabel().toUpperCase())}</div><h2>Orarul mesei</h2>${xbtn()}</div>
-    <div class="sheet-b"><div class="row" style="gap:6px">${S.people.map(p=>`<span class="row small" style="gap:4px">${avHTML(p,"sm")}${esc(p.name)}</span>`).join("")}<span class="tiny-t muted" style="margin-left:auto">Atinge o căsuță ca s-o schimbi. Pe telefon, ținut orizontal se vede mai bine.</span></div>
+    <div class="sheet-b"><div class="row" style="gap:6px">${S.people.map(p=>`<span class="row small" style="gap:4px">${avHTML(p,"sm")}${esc(p.name)}</span>`).join("")}<span class="tiny-t muted" style="margin-left:auto">Atinge o căsuță ca s-o schimbi. Pe telefon, ținut orizontal se vede mai bine.</span><button class="btn sm paper" id="calImg2">🖼 Imagine</button></div>
     <div class="calwrap calfw">${calHTML(true)}</div></div>`,"calfull");
-  $("#overlay").querySelectorAll("[data-slot]").forEach(b=>b.onclick=()=>{const [d,sl]=b.dataset.slot.split("|");editSlot(+d,sl)})}
+  $("#overlay").querySelectorAll("[data-slot]").forEach(b=>b.onclick=()=>{const [d,sl]=b.dataset.slot.split("|");editSlot(+d,sl)});$("#calImg2").onclick=calImageModal}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-gotab]");if(b){if(modalOpen())closeModal();go(b.dataset.gotab)}});
 
 /* Editor de masă */
@@ -1421,11 +1444,11 @@ function editSlot(d,sl,onlyPid){
               <span class="stepper"><button data-em="${p.id}|${i}|-" aria-label="Mai puțin">−</button>${numOut(e.m,"em|"+p.id+"|"+i,"×"+fmtM(e.m),{min:.05,max:50})}<button data-em="${p.id}|${i}|+" aria-label="Mai mult">+</button></span>
               <button class="tiny" data-edel="${p.id}|${i}" aria-label="Scoate">×</button></div>`}
             if(e.c)return `<div class="ent"><span class="dot-th" style="background:var(--butter-soft)">${spr("note",13)}</span><span class="n">${esc(e.n)}<small>${fmt(e.kcal)} kcal · ${fmt(e.p)} g proteine</small></span><button class="tiny" data-edel="${p.id}|${i}" aria-label="Scoate">×</button></div>`;
-            const b=batchById(e.b),r=R[b.rid],st=freshness(b,d),c=compat(r,p);
+            const b=batchById(e.b),r=R[b.rid],st=freshness(b,d,sl),c=compat(r,p);
             return `<div class="ent">${thumb(r,"dot-th",13)}<span class="n">${esc(r.name)}<small>din ${esc(sesName(sesById(b.sid)))} · ${fmt(r.nut.kcal*e.m)} kcal · ${fmt(r.nut.p*e.m)} g P ${statusBadge(st)}${c.ok?"":` <span class="badge b-bad">⚠ ${esc(c.why.join(", "))}</span>`}</small></span>
               <span class="stepper"><button data-em="${p.id}|${i}|-" aria-label="Mai puțin">−</button>${numOut(e.m,"em|"+p.id+"|"+i,"×"+fmtM(e.m),{min:.05,max:50})}<button data-em="${p.id}|${i}|+" aria-label="Mai mult">+</button></span>
               <button class="tiny" data-edel="${p.id}|${i}" aria-label="Scoate">×</button></div>`}).join(""):`<span class="small muted">Nimic încă.</span>`}
-          ${adding===p.id+"|b"?`<div class="pick">${avail.length?avail.slice().reverse().map(s=>PL().batches.filter(b=>b.sid===s.id).map(b=>{const r=R[b.rid],st=freshness(b,d),c=compat(r,p);
+          ${adding===p.id+"|b"?`<div class="pick">${avail.length?avail.slice().reverse().map(s=>PL().batches.filter(b=>b.sid===s.id).map(b=>{const r=R[b.rid],st=freshness(b,d,sl),c=compat(r,p);
               return `<button data-eadd="${p.id}|${b.id}" ${st==="bad"?'style="opacity:.6"':""}>${thumb(r,"dot-th",13)}<span class="grow">${esc(r.name)} <span class="small muted">· ${esc(sesName(s))}</span></span>${statusBadge(st)}${c.ok?"":'<span class="badge b-bad">⚠</span>'}</button>`}).join("")).join(""):`<span class="small muted">Nu se gătește nimic înainte de ziua asta.</span>`}</div>`:""}
           ${adding===p.id+"|c"?`<div class="pick">${PRESETS.map((x,k)=>`<button data-epre="${p.id}|${k}">${spr("note",16)}<span class="grow">${x.n}</span><span class="small muted">~${x.kcal} kcal</span></button>`).join("")}
               <div class="fields"><div class="field"><label for="cn">Altceva</label><input id="cn" placeholder="ex. Pizza"></div><div class="field"><label for="ck">kcal</label><input id="ck" type="number" inputmode="numeric" placeholder="600"></div><div class="field"><label for="cp">Proteine (g)</label><input id="cp" type="number" inputmode="numeric" placeholder="25"></div></div>
@@ -1449,7 +1472,7 @@ function editSlot(d,sl,onlyPid){
       const m=r4(p.mult*(r.role==="salad"&&entries(d,sl,pid).some(e=>e.b)?.5:1));setEntries(d,sl,pid,[...entries(d,sl,pid),{b:bid,m}]);adding=null;S.sample=false;save();draw()});
     const erq=o.querySelector("[data-erq]");if(erq)erq.addEventListener("input",()=>{rq=erq.value;const pos=erq.selectionStart;draw();const n=$("#overlay").querySelector("[data-erq]");n.focus();n.setSelectionRange(pos,pos)});
     o.querySelectorAll("[data-erec]").forEach(b=>b.onclick=()=>{const [pid,rid]=sp(b.dataset.erec);const p=person(pid),ss=sessSorted();
-      const s=ss.filter(x=>x.day<=d).pop()||ss[0];if(!s){toast("Adaugă întâi o zi de gătit");return}
+      const s=sessAt(d,sl)||ss.filter(x=>x.day<=d).pop()||ss[0];if(!s){toast("Adaugă întâi o zi de gătit");return}
       let bt=PL().batches.find(x=>x.sid===s.id&&x.rid===rid);if(!bt){bt={id:uid(),rid,sid:s.id,extra:0};PL().batches.push(bt)}
       setEntries(d,sl,pid,[...entries(d,sl,pid),{b:bt.id,m:r4(p.mult)}]);adding=null;rq="";S.sample=false;save();toast("Gătită în "+sesName(s));draw()});
     o.querySelectorAll("[data-esimple]").forEach(b=>b.onclick=()=>{const [pid,fid]=sp(b.dataset.esimple);const es=entries(d,sl,pid).slice(),ex=es.findIndex(e=>e.s===fid);
@@ -1764,7 +1787,7 @@ function portionHTML(b,n){
     <div class="row small" style="gap:6px"><label for="w_${b.id}"><b>Cântărește tot ce a ieșit</b> (fără vas):</label><input id="w_${b.id}" data-w="${b.id}" type="number" inputmode="numeric" value="${w||""}" placeholder="g" style="width:90px;border:2px solid var(--wood-d);border-radius:8px;padding:4px 6px;background:var(--panel)"> g
       ${w?`<span class="badge b-ok">o porție standard ≈ ${fmt(w/n)} g</span>`:""}</div>
     <div class="boxes">${byP.map(({p,us})=>`<div class="bx">${avHTML(p,"sm")}<b>${esc(p.name)}</b><span class="small muted">${us.length} ${us.length===1?"caserolă":"caserole"}</span></div>
-      ${us.map(x=>`<div class="bx" style="padding-left:30px"><span class="small">${esc(dShort(x.d))} · ${esc(slotInfo(x.sl).n.toLowerCase())}${freshness(b,x.d)==="freeze"?" ❄":""}</span><span class="g small">×${fmtM(x.e.m)} · ${fmt(x.e.m/n*100)}%${w?" · ≈ "+fmt(w*x.e.m/n)+" g":""}</span></div>`).join("")}`).join("")}
+      ${us.map(x=>`<div class="bx" style="padding-left:30px"><span class="small">${esc(dShort(x.d))} · ${esc(slotInfo(x.sl).n.toLowerCase())}${freshness(b,x.d,x.sl)==="freeze"?" ❄":""}</span><span class="g small">×${fmtM(x.e.m)} · ${fmt(x.e.m/n*100)}%${w?" · ≈ "+fmt(w*x.e.m/n)+" g":""}</span></div>`).join("")}`).join("")}
       ${b.extra?`<div class="bx"><span class="dot-th" style="background:var(--sky-soft)">❄</span><b>Congelator</b><span class="g small">${b.extra} porții · ${fmt(b.extra/n*100)}%${w?" · ≈ "+fmt(w*b.extra/n)+" g":""}</span></div>`:""}</div>
     <p class="tiny-t muted" style="margin:0">Fără cântar: împarte oala în ${fmtM(n)} părți egale (o parte = o porție standard). O caserolă ×1,2 ia o parte și o cincime, una ×0,75 ia trei sferturi de parte. Porțiile marcate ❄ merg direct la congelator.</p>
   </div></details>`;
@@ -1786,6 +1809,7 @@ function viewCook(){
   $("#view").innerHTML=`
   <div class="page-title">${spr("flame",30)}<h2>Ziua de gătit</h2></div>
   <div class="seg" style="margin-bottom:14px">${ses.map(x=>`<button class="chip" data-cs="${x.id}" aria-pressed="${x.id===s.id}">${esc(sesName(x))}</button>`).join("")}</div>
+  <p class="small muted" style="margin:-6px 0 12px">${spr("flame",14)} Gătești ${esc(dLong(s.day))}${+s.fo?"":", înainte de "+esc(slotInfo(fromOf(s).sl).n.toLowerCase())}; ce iese acoperă mesele <b>${esc(sesSpan(s))||"–"}</b>.</p>
   ${cp.its.length?`
   <div class="panel flat" style="margin-bottom:14px">
     <div class="row between"><b>${doneN} din ${allSteps} pași făcuți</b><span class="small">${cp.its.length} rețete · ${boxes} caserole</span></div>
@@ -1822,7 +1846,7 @@ function viewCook(){
   V.querySelectorAll("[data-w]").forEach(x=>x.onchange=()=>{S.weights[x.dataset.w]=+x.value||0;save();const det=[...V.querySelectorAll("details.more")].map(d=>d.open);viewCook();V.querySelectorAll("details.more").forEach((d,i)=>d.open=det[i])});
   const cd=$("#cookDone");if(cd)cd.onclick=()=>{
     const date=dayDate(s.day).getTime(),sub=$("#subInv").checked;
-    for(const i of cp.its){const u=uses(i.b);const fz=u.filter(x=>freshness(i.b,x.d)==="freeze").reduce((a,x)=>a+x.e.m,0)+(i.b.extra||0);const fr=i.n-fz;
+    for(const i of cp.its){const u=uses(i.b);const fz=u.filter(x=>freshness(i.b,x.d,x.sl)==="freeze").reduce((a,x)=>a+x.e.m,0)+(i.b.extra||0);const fr=i.n-fz;
       const who=[...new Set(u.map(x=>x.pid))];
       if(fr>0)S.boxes.push({u:uid(),rid:i.r.id,portions:Math.round(fr*100)/100,date,where:i.r.fd===0&&i.r.fz?"congelator":"frigider",who});
       if(fz>0)S.boxes.push({u:uid(),rid:i.r.id,portions:Math.round(fz*100)/100,date,where:"congelator",who});
@@ -2620,16 +2644,16 @@ function menuSummary(M){return activeSlots().map(sl=>{const v=M[sl.id];
    Fără opts.keep: alege rețete noi (generatorul). Cu opts.keep: folosește doar rețetele deja alese la „Ce gătim”
    (pentru „Refă tot calendarul”, „Umple golurile”, adăugat / scos o rețetă), tot după meniu. */
 function genSession(s,rand,used,opts={}){
-  const keep=!!opts.keep,empty=!!opts.empty,days=sessRange(s),M=menuOf(s),dset=new Set(days);
+  const keep=!!opts.keep,empty=!!opts.empty,days=sessRange(s),M=menuOf(s),first=sessMeals(s)[0]||{d:s.day,sl:(SLOTS[0]||{}).id};
   if(!keep)PL().batches=PL().batches.filter(b=>b.sid!==s.id);
-  if(!empty)for(const k of Object.keys(PL().meals)){if(!dset.has(+k.split("|")[0]))continue;const a=PL().meals[k].filter(e=>!e.b&&!e.a);if(a.length)PL().meals[k]=a;else delete PL().meals[k]}
+  if(!empty)for(const k of Object.keys(PL().meals)){const [kd,ks]=k.split("|");if(!SLOT[ks]||!inSess(s,+kd,ks))continue;const a=PL().meals[k].filter(e=>!e.b&&!e.a);if(a.length)PL().meals[k]=a;else delete PL().meals[k]}
   const bOf=new Map(),chosen=new Map(),sess=new Set(),placed=new Set();
   if(keep)for(const b of PL().batches)if(b.sid===s.id&&!bOf.has(b.rid))bOf.set(b.rid,b.id);
   const batchFor=rid=>{if(!bOf.has(rid)){const b={id:uid(),rid,sid:s.id,extra:0};PL().batches.push(b);bOf.set(rid,b.id)}return bOf.get(rid)};
   const match=(c,r)=>c.t==="c"?r.cats.includes(c.id):c.t==="k"?colHas(c.id,r.id):false;
   const pick=(c,k,ppl)=>{const isF=c.t==="f";
     if(keep&&!isF){let mine=[...bOf.keys()].map(id=>R[id]).filter(r=>r&&match(c,r)&&!sess.has(r.id));
-      if(!mine.length){const prev=sessSorted().filter(x=>x.day<s.day).reverse();for(const ps of prev){const bs=PL().batches.filter(b=>b.sid===ps.id&&R[b.rid]&&match(c,R[b.rid])&&freshness(b,days[0])!=="bad");if(bs.length){bs.forEach(b=>{if(!bOf.has(b.rid))bOf.set(b.rid,b.id)});mine=bs.map(b=>R[b.rid]);break}}}
+      if(!mine.length){const prev=sessSorted().filter(x=>x.day<s.day).reverse();for(const ps of prev){const bs=PL().batches.filter(b=>b.sid===ps.id&&R[b.rid]&&match(c,R[b.rid])&&freshness(b,first.d,first.sl)!=="bad");if(bs.length){bs.forEach(b=>{if(!bOf.has(b.rid))bOf.set(b.rid,b.id)});mine=bs.map(b=>R[b.rid]);break}}}
       mine.forEach(x=>sess.add(x.id));return mine.sort((a,b)=>(a.fd+(a.fz>0?3:0))-(b.fd+(b.fz>0?3:0)))}
     let pool=compPool(c).filter(x=>!sess.has(x.id));if(!pool.length)pool=compPool(c);
     const w=x=>{let v=1;if(ppl.every(p=>okFor(x,p,isF)))v*=4;else if(!ppl.some(p=>okFor(x,p,isF)))v*=.03;
@@ -2644,7 +2668,7 @@ function genSession(s,rand,used,opts={}){
   const busy=(d,sl,p)=>empty&&entries(d,sl,p.id).some(e=>e.b||e.a);
   for(const sl of SLOTS.map(x=>x.id)){
     const base=typeof M[sl]==="string"?M[sl]:sl,comps=M[base];if(!Array.isArray(comps)||!comps.length)continue;
-    const all=[];for(const d of days)for(const p of S.people)if(cov(p,sl,d))all.push({d,p});if(!all.length)continue;
+    const all=[];for(const d of days)if(inSess(s,d,sl))for(const p of S.people)if(cov(p,sl,d))all.push({d,p});if(!all.length)continue;
     const diners=all.filter(x=>!busy(x.d,sl,x.p));
     const dl=[...new Set(all.map(x=>x.d))],ppl=[...new Set(all.map(x=>x.p))];
     const roles=comps.map(c=>c.t==="c"?((CAT[c.id]||{}).role||""):c.t==="k"?"k":"f"),hasSoup=roles.includes("soup"),multi=comps.filter(c=>c.t!=="f").length>1;
@@ -2653,6 +2677,8 @@ function genSession(s,rand,used,opts={}){
       if(!vars.length)return;const isF=c.t==="f",shift=base!==sl&&vars.length>1?1:0;
       for(const {d,p} of diners){let it=vars[(Math.min(vars.length-1,Math.floor(dl.indexOf(d)*vars.length/dl.length))+shift)%vars.length];
         if(!okFor(it,p,isF)){it=vars.find(x=>okFor(x,p,isF))||(keep&&!isF?null:compPool(c).find(x=>okFor(x,p,isF)));if(!it)continue}
+        /* nu pune mâncare care nu mai ține în ziua aceea: încearcă altă variantă, altfel lasă locul gol */
+        if(!isF){const lasts=r=>d-s.day<=r.fd||r.fz>0;if(!lasts(it)){it=vars.find(x=>okFor(x,p,isF)&&lasts(x));if(!it)continue}}
         let e;if(isF)e={s:it.id,m:1,a:1};
         else{let f=1;const ro=(c.t==="c"&&(CAT[c.id]||{}).role)||it.role;if(multi){if(ro==="soup")f=.6;else if(ro==="salad")f=.5;else if(hasSoup&&(ro==="main"||ro==="side"))f=.75}
           e={b:batchFor(it.id),m:r4(p.mult*f)};placed.add(it.id)}
@@ -2660,7 +2686,7 @@ function genSession(s,rand,used,opts={}){
   /* rețete puse de mână la „Ce gătim”, care nu sunt în meniu: merg la prima masă potrivită ca fel */
   if(keep)for(const b of PL().batches.filter(x=>x.sid===s.id&&R[x.rid]&&!placed.has(x.rid)&&!sess.has(x.rid))){const r=R[b.rid];
     const kind=r.role==="md"?"md":r.role==="snack"?"snack":"main",sl=(SLOTS.find(x=>x.k===kind&&S.people.some(p=>days.some(d=>cov(p,x.id,d))))||{}).id;if(!sl)continue;
-    for(const d of days)for(const p of S.people){if(!cov(p,sl,d)||busy(d,sl,p)||!compat(r,p).ok)continue;
+    for(const d of days)for(const p of S.people){if(!inSess(s,d,sl)||!cov(p,sl,d)||busy(d,sl,p)||!compat(r,p).ok)continue;
       setEntries(d,sl,p.id,[...entries(d,sl,p.id),{b:b.id,m:r4(p.mult*(r.role==="salad"?.5:1))}])}}
 }
 /* Cât de departe e planul de ținte (mai mic = mai bine) */
@@ -2670,7 +2696,7 @@ function scoreRange(days){let sc=0;
       const T={k:p.t.kcal*sh,p:p.t.p*sh,c:p.t.c*sh,f:p.t.f*sh};const ek=(x.kcal-T.k)/T.k,ep=T.p?(x.p-T.p)/T.p:0,ec=T.c?(x.c-T.c)/T.c:0,ef=T.f?(x.f-T.f)/T.f:0;
       const t=ek*ek+ep*ep*(ep<0?1:.3)+.15*(ec*ec+ef*ef);sc+=p.tMode==="sapt"?t*.3:t;ak+=x.kcal;at+=T.k;n++;
       for(const sl of SLOTS){const es=entries(d,sl.id,p.id);if(cov(p,sl.id,d)&&!es.length)sc+=.6;
-        for(const e of es){const b=e.b&&batchById(e.b);if(!b)continue;const st=freshness(b,d);if(st==="bad"||st==="before")sc+=1.5;else if(st==="freeze")sc+=.08;if(!compat(R[b.rid],p).ok)sc+=3}}}
+        for(const e of es){const b=e.b&&batchById(e.b);if(!b)continue;const st=freshness(b,d,sl.id);if(st==="bad"||st==="before")sc+=1.5;else if(st==="freeze")sc+=.08;if(!compat(R[b.rid],p).ok)sc+=3}}}
     if(p.tMode==="sapt"&&n){const e=(ak-at)/at;sc+=e*e*n}}
   return sc}
 /* Încearcă multe combinații aleatorii și o păstrează pe cea mai apropiată de ținte */
@@ -2689,11 +2715,11 @@ function fitBadges(days){return S.people.map(p=>{const f=fitInfo(p,days);if(!f)r
 
 /* Editorul de meniu (general sau pentru o zi de gătit) */
 function menuEditor(sid){const s=sid?sesById(sid):null;let M=JSON.parse(JSON.stringify(menuOf(s)));modalCtx=()=>draw();
-  const meals=sl=>{if(!s)return 0;let n=0;for(const d of sessRange(s))for(const p of S.people)if(cov(p,sl,d))n++;return n};
+  const meals=sl=>{if(!s)return 0;let n=0;for(const x of sessMeals(s))if(x.sl===sl)for(const p of S.people)if(cov(p,sl,x.d))n++;return n};
   const draw=()=>{const sc=$("#overlay").scrollTop;
     openModal(`<div class="sheet-h"><h2>${s?"Meniul pentru "+esc(sesName(s)):"Meniul planului"}</h2>${xbtn()}</div><div class="sheet-b">
       <p class="small muted" style="margin:0">Alege ce intră în fiecare masă și câte rețete diferite gătiți din fiecare. Ex.: 4 prânzuri cu „2 variante” = 2 rețete, câte 2 porții; cu „aceeași” = o rețetă de 4 porții. Aplicația alege la întâmplare din ce aveți în categorii (favoritele mai des), încearcă vreo 30 de combinații și o păstrează pe cea mai apropiată de țintele fiecăruia, cu porțiile potrivite.</p>
-      ${s?`<p class="small" style="margin:0">Ziua asta acoperă ${esc(sessRange(s).map(d=>dShort(d)).join(", "))}.</p>`:""}
+      ${s?`<p class="small" style="margin:0">Acoperă mesele ${esc(sesSpan(s))}.</p>`:""}
       ${activeSlots().map(sl=>{const v=M[sl.id],same=typeof v==="string",comps=same?[]:(v||[]);
         const others=activeSlots().filter(o=>o.id!==sl.id&&Array.isArray(M[o.id])&&M[o.id].some(c=>c.t!=="f"));
         return `<section class="menuslot"><div class="row between"><b>${spr(sl.s,18)} ${esc(sl.n)}</b>${s?`<span class="small muted">${meals(sl.id)} ${meals(sl.id)===1?"masă":"mese"} de acoperit</span>`:""}</div>
@@ -2931,6 +2957,68 @@ function mealsEditor(pid){let open=null,ask=null,nn="",nk="snack";modalCtx=()=>d
     const mr=$("#mReset");if(mr)mr.onclick=()=>{S.slots=null;rebuildLib();for(const x of S.people)for(const k of Object.keys(x.split))if(!SLOT[k])delete x.split[k];commit();draw()};
   };draw();
 }
+
+/* ================= Orarul ca imagine (SVG desenat de aplicație → PNG) ================= */
+const IMGC={bg:"#f4e8c9",panel:"#fdf6e3",ink:"#3b2a20",muted:"#7a6249",wood:"#8b5a2b",woodD:"#5c3a1e",woodL:"#c99a62",off:"#efe3c4",cook:"#c9463f",cookSoft:"#f8dcd6",stripe:["#f2c94c","#8fc7d6","#f29bb2"],pc:["#5e9a3c","#d9668a","#2b86c2","#c99015","#8a63c9","#b0532a"]};
+const IMGF="Nunito,'Segoe UI',Roboto,Arial,sans-serif";
+const sprAt=(n,x,y,s)=>{const v=sprSVG(n);return v?v.replace("<svg ",`<svg x="${x}" y="${y}" width="${s}" height="${s}" `):""};
+function wrapTxt(t,max){const words=String(t).split(/\s+/),out=[];let cur="";for(const w of words){if(!cur)cur=w;else if((cur+" "+w).length<=max)cur+=" "+w;else{out.push(cur);cur=w}}if(cur)out.push(cur);
+  return out.flatMap(l=>l.length>max?l.match(new RegExp(".{1,"+max+"}","g")):[l])}
+function calSVG(pids){
+  const people=S.people.filter(p=>!pids||pids.includes(p.id)),slots=activeSlots().filter(sl=>people.some(p=>hasSlot(p,sl.id))),days=DAYIX(),ss=sessSorted();
+  const M=24,SW=118,DW=212,HH=88,DH=50,FS=12.5,LH=16,maxC=Math.floor((DW-46)/(FS*.52));
+  /* conținutul fiecărei căsuțe */
+  const cell=(d,sl)=>{const blocks=[];for(const p of people){const es=entries(d,sl,p.id);if(!es.length){if(cov(p,sl,d)&&hasSlot(p,sl))blocks.push({p,gap:true,lines:[]});continue}
+      const lines=[];for(const e of es){const ic=e.c?"note":e.s?(FOOD[e.s]||{}).s||"note":rIcon(R[batchById(e.b).rid]);const t=entryName(e)+(e.c?"":" ×"+fmtM(e.m));wrapTxt(t,maxC).forEach((l,i)=>lines.push({ic:i?null:ic,t:l}))}
+      blocks.push({p,kcal:slotNut(d,sl,p.id).kcal,lines})}
+    const se=sessAt(d,sl);return{blocks,se,start:se&&isFirstMeal(se,d,sl),h:blocks.reduce((a,b)=>a+20+b.lines.length*LH+4,0)+(se&&isFirstMeal(se,d,sl)?18:0)}};
+  const grid=slots.map(sl=>days.map(d=>cell(d,sl.id)));
+  const rowH=grid.map(r=>Math.max(58,...r.map(c=>c.h+14)));
+  const W=M*2+SW+days.length*DW,H=M+HH+DH+rowH.reduce((a,b)=>a+b,0)+40+M;
+  let o=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="${IMGF}"><rect width="${W}" height="${H}" fill="${IMGC.bg}"/>`;
+  /* titlu */
+  o+=`<rect x="${M}" y="${M}" width="${W-2*M}" height="${HH-16}" rx="12" fill="${IMGC.wood}" stroke="${IMGC.woodD}" stroke-width="3"/>${sprAt("jar",M+14,M+14,44)}
+    <text x="${M+70}" y="${M+38}" font-size="24" font-weight="800" fill="#fdf6e3" font-family="'Courier New',monospace">Cine ce mănâncă</text>
+    <text x="${M+70}" y="${M+60}" font-size="14" fill="#f2c94c">${esc(weekLabel())} · ${LEN()} ${LEN()===1?"zi":"zile"}</text>`;
+  let lx=W-M-16;for(const p of people.slice().reverse()){const tw=p.name.length*8+34;lx-=tw;o+=`<circle cx="${lx+12}" cy="${M+36}" r="13" fill="${IMGC.pc[p.ci%6]}"/>${sprAt(p.av,lx+3,M+27,18)}<text x="${lx+30}" y="${M+41}" font-size="14" font-weight="700" fill="#fdf6e3">${esc(p.name)}</text>`}
+  /* capul de tabel */
+  const y0=M+HH;
+  days.forEach((d,i)=>{const x=M+SW+i*DW,cook=PL().sessions.some(s=>s.day===d);
+    o+=`<text x="${x+10}" y="${y0+20}" font-size="15" font-weight="800" fill="${IMGC.ink}">${esc(cap(dShort(d)))}</text>`;
+    if(cook)o+=`<rect x="${x+8}" y="${y0+28}" width="62" height="17" rx="8" fill="${IMGC.cookSoft}" stroke="${IMGC.cook}"/>${sprAt("flame",x+11,y0+30,13)}<text x="${x+27}" y="${y0+41}" font-size="11" font-weight="800" fill="${IMGC.ink}">gătim</text>`});
+  /* rândurile */
+  let y=y0+DH;
+  slots.forEach((sl,ri)=>{const h=rowH[ri];
+    o+=`${sprAt(sl.s,M+SW/2-11,y+h/2-26,22)}<text x="${M+SW/2}" y="${y+h/2+14}" font-size="13" font-weight="800" fill="${IMGC.ink}" text-anchor="middle">${esc(sl.n)}</text>`;
+    grid[ri].forEach((c,i)=>{const x=M+SW+i*DW+4,w=DW-8,ch=h-8;const any=c.blocks.length;
+      o+=`<rect x="${x}" y="${y}" width="${w}" height="${ch}" rx="9" fill="${any?IMGC.panel:IMGC.off}" stroke="${any?IMGC.woodL:IMGC.woodL}" ${any?"":'stroke-dasharray="5 4"'} stroke-width="1.5"/>`;
+      if(c.se){const si=ss.indexOf(c.se)%3;o+=`<rect x="${x+1}" y="${y+1}" width="${w-2}" height="5" rx="3" fill="${IMGC.stripe[si]}"/>`}
+      let yy=y+12;
+      if(c.start){o+=`<rect x="${x+7}" y="${yy-2}" width="94" height="16" rx="8" fill="${IMGC.cookSoft}" stroke="${IMGC.cook}"/>${sprAt("flame",x+10,yy,12)}<text x="${x+25}" y="${yy+10}" font-size="10.5" font-weight="800" fill="${IMGC.ink}">gătit ${esc(DAYS[dayDate(c.se.day).getDay()])} ${dayDate(c.se.day).getDate()}</text>`;yy+=18}
+      if(!any)o+=`<text x="${x+w/2}" y="${y+ch/2+4}" font-size="13" fill="${IMGC.muted}" text-anchor="middle">—</text>`;
+      for(const b of c.blocks){o+=`<circle cx="${x+16}" cy="${yy+8}" r="9" fill="${IMGC.pc[b.p.ci%6]}"/>${sprAt(b.p.av,x+9,yy+1,14)}<text x="${x+30}" y="${yy+13}" font-size="12.5" font-weight="800" fill="${IMGC.ink}">${esc(b.p.name)}</text>`;
+        o+=b.gap?`<text x="${x+w-8}" y="${yy+13}" font-size="11" fill="${IMGC.muted}" text-anchor="end">gol</text>`:`<text x="${x+w-8}" y="${yy+13}" font-size="11" fill="${IMGC.muted}" text-anchor="end">${fmt(b.kcal)} kcal</text>`;yy+=20;
+        for(const l of b.lines){if(l.ic)o+=sprAt(l.ic,x+12,yy+1,13);o+=`<text x="${x+30}" y="${yy+11}" font-size="${FS}" fill="${IMGC.ink}">${esc(l.t)}</text>`;yy+=LH}yy+=4}});
+    y+=h});
+  o+=`<text x="${M}" y="${H-M+4}" font-size="11.5" fill="${IMGC.muted}">Dunga colorată = din ce zi de gătit vine mâncarea · ×1 = porția standard din rețetă · Cute Meal Planner, ${esc(new Date().toLocaleDateString("ro-RO",{day:"numeric",month:"long",year:"numeric"}))}</text></svg>`;
+  return{svg:o,w:W,h:H}}
+function svgToPng(svg,w,h,scale){return new Promise((res,rej)=>{const img=new Image(),url=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml;charset=utf-8"}));
+  img.onload=()=>{try{const c=document.createElement("canvas");c.width=Math.round(w*scale);c.height=Math.round(h*scale);const x=c.getContext("2d");x.scale(scale,scale);x.drawImage(img,0,0,w,h);URL.revokeObjectURL(url);c.toBlob(b=>b?res(b):rej(new Error("png")),"image/png")}catch(e){rej(e)}};
+  img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error("svg"))};img.src=url})}
+function downloadBlob(name,blob){try{const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800)}catch(e){toast("Descărcarea nu merge aici")}}
+function calImageModal(){let who="all";const prev=calFull;modalCtx=null;
+  const draw=()=>{const pids=who==="all"?null:[who],{svg,w,h}=calSVG(pids),name=`orar-${slug(weekLabel())}${pids?"-"+slug(person(who).name):""}`;
+    openModal(`<div class="sheet-h"><h2>Orarul ca imagine</h2>${xbtn()}</div><div class="sheet-b">
+      ${S.people.length>1?`<div class="seg"><button class="chip" data-iw="all" aria-pressed="${who==="all"}">Toată lumea</button>${S.people.map(p=>`<button class="chip" data-iw="${p.id}" aria-pressed="${who===p.id}">${avHTML(p,"sm")} Doar ${esc(p.name)}</button>`).join("")}</div>`:""}
+      <div class="imgprev"><img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" alt="Previzualizare orar" width="${w}" height="${h}"></div>
+      <div class="row"><button class="btn green" id="iShare">Trimite PNG</button><button class="btn paper" id="iPng">Descarcă PNG</button><button class="btn paper sm" id="iSvg">Descarcă SVG</button></div>
+      <p class="tiny-t muted" style="margin:0">PNG e cel mai bun pentru WhatsApp și galerie (rezoluție dublă, se citește și mărit). SVG rămâne clar la orice mărime, bun de printat. ${fmt(w)} × ${fmt(h)} px.</p></div>`);
+    const o=$("#overlay");o.querySelectorAll("[data-iw]").forEach(b=>b.onclick=()=>{who=b.dataset.iw;draw()});
+    const png=()=>svgToPng(svg,w,h,Math.min(2,6000/Math.max(w,h)));
+    $("#iSvg").onclick=()=>downloadBlob(name+".svg",new Blob([svg],{type:"image/svg+xml"}));
+    $("#iPng").onclick=async()=>{try{downloadBlob(name+".png",await png())}catch(e){toast("PNG nu merge în browserul ăsta: descarcă SVG")}};
+    $("#iShare").onclick=async()=>{try{const b=await png(),f=new File([b],name+".png",{type:"image/png"});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:"Orarul mesei"});return}downloadBlob(name+".png",b);toast("Telefonul nu poate trimite direct: am descărcat imaginea")}catch(e){if(e&&e.name==="AbortError")return;toast("Nu am putut face PNG: descarcă SVG")}};
+  };calFull=false;draw();calFull=prev}
 
 /* ================= Text pentru WhatsApp ================= */
 function entriesText(es){return es.map(e=>e.c?e.n:entryName(e)+(e.m!==1?" ×"+fmtM(e.m):"")).join(" + ")}
