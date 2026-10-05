@@ -365,6 +365,10 @@ footer{margin-top:26px;font-size:13px;color:var(--muted)}
 .ingx .field input,.ingx .field select{padding:5px 7px;border-width:2px}
 .catrow{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,170px) auto;gap:6px;align-items:center;padding:8px;border:2px solid var(--wood-l);border-radius:10px;background:var(--panel)}
 .catrow.fgrow{grid-template-columns:auto minmax(0,1fr) auto}
+.colbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.srcl{position:absolute;top:8px;left:8px;z-index:3;background:var(--panel);border:2px solid var(--wood-d);border-radius:50%;width:36px;height:36px;display:grid;place-items:center;
+  color:var(--ink);text-decoration:none;font-weight:900;font-size:18px;box-shadow:0 2px 0 var(--wood-d)}
+.srcl:hover,.srcl:focus-visible{background:var(--butter);transform:translateY(-1px)}
 .impr{border:2px solid var(--wood-l);border-radius:10px;padding:8px;background:var(--panel)}
 .impr details summary{cursor:pointer;color:var(--muted)}
 .tip.soft{background:var(--sky-soft);border-color:var(--wood-l)}
@@ -593,10 +597,16 @@ function rebuildLib(){
   FGROUPS=(Array.isArray(S.fgroups)?S.fgroups:BASE_FGROUPS).map(g=>({...g}));FG=Object.fromEntries(FGROUPS.map(g=>[g.id,g]));
   FOODS=S.foods.filter(f=>f&&ING[f.k]).map(deriveFood);FOOD=Object.fromEntries(FOODS.map(f=>[f.id,f]));
 }
+/* Colecții de rețete: „Favorite” e fixă (S.fav), restul sunt ale voastre */
+const colList=()=>[{id:"fav",n:"Favorite",s:"heart",fixed:true,ids:S.fav},...S.cols];
+const colById=id=>colList().find(c=>c.id===id);
+const colHas=(cid,rid)=>{const c=colById(cid);return!!c&&c.ids.includes(rid)};
+function colSet(cid,rid,on){if(cid==="fav"){S.fav=on?[...new Set([...S.fav,rid])]:S.fav.filter(x=>x!==rid);return}const c=S.cols.find(x=>x.id===cid);if(!c)return;c.ids=on?[...new Set([...c.ids,rid])]:c.ids.filter(x=>x!==rid)}
+const colsOf=rid=>colList().filter(c=>c.ids.includes(rid));
 /* curăță referințele la rețete / mâncăruri care nu mai există */
 function pruneRefs(){
   S.plan.batches=S.plan.batches.filter(b=>R[b.rid]&&S.plan.sessions.some(s=>s.id===b.sid));
-  S.boxes=S.boxes.filter(f=>R[f.rid]);S.fav=S.fav.filter(id=>R[id]);cleanMeals();
+  S.boxes=S.boxes.filter(f=>R[f.rid]);S.fav=S.fav.filter(id=>R[id]);for(const c of S.cols||[])c.ids=c.ids.filter(id=>R[id]);cleanMeals();
 }
 const proxied=(u,w)=>"https://wsrv.nl/?url="+encodeURIComponent(u)+"&w="+w+"&h="+Math.round(w*.625)+"&fit=cover&output=webp&q=78";
 const imgHTML=(r,cls,fbSize)=>{const w=cls==="ph"?720:96,yt=(r.video&&r.video.id)||"",fb=`<span class="fb">${spr(rIcon(r),fbSize)}</span>`;
@@ -620,7 +630,7 @@ function newPerson(i){return{id:uid(),name:"Persoana "+(i+1),av:AV[i%6],ci:i%6,m
   t:i===1?{kcal:1600,p:100,c:170,f:55,fib:25}:{kcal:2000,p:140,c:210,f:65,fib:30},tMode:"zi",diet:"omnivor",nolac:false,nogl:false,avoid:[],cover:defCover()}}
 function defaults(){return{v:2,theme:"auto",tab:"retete",planTab:"gatim",setup:false,sample:true,fav:[],people:[newPerson(0),newPerson(1)],
   plan:{start:nextSunday(),len:7,sessions:[{id:uid(),day:0},{id:uid(),day:3}],batches:[],meals:{}},shop:[],pantry:[],boxes:[],done:{},cookSess:null,nutP:null,nutD:1,weights:{},
-  lib:{cats:null,rx:{},del:[],ing:{}},foods:defFoods(),menu:null,log:{},trackInv:true,nutView:"jurnal",jD:null}}
+  lib:{cats:null,rx:{},del:[],ing:{}},foods:defFoods(),cols:[{id:"incerc",n:"Vreau să încerc",s:"star",ids:[]}],menu:null,log:{},trackInv:true,nutView:"jurnal",jD:null}}
 let S;
 try{S=JSON.parse(localStorage.getItem(LS)||"null")}catch(e){S=null}
 function sane(){
@@ -632,7 +642,8 @@ function sane(){
   if(!S.lib||typeof S.lib!=="object")S.lib=d.lib;
   for(const k of ["rx","ing"])if(!S.lib[k]||typeof S.lib[k]!=="object")S.lib[k]={};
   if(!Array.isArray(S.lib.del))S.lib.del=[];if(S.lib.cats!==null&&!Array.isArray(S.lib.cats))S.lib.cats=null;
-  if(!Array.isArray(S.foods))S.foods=defFoods();if(S.fgroups!=null&&!Array.isArray(S.fgroups))S.fgroups=null;
+  if(!Array.isArray(S.foods))S.foods=defFoods();
+  if(!Array.isArray(S.cols))S.cols=d.cols;S.cols=S.cols.filter(c=>c&&c.id&&c.id!=="fav");for(const c of S.cols)if(!Array.isArray(c.ids))c.ids=[];if(S.fgroups!=null&&!Array.isArray(S.fgroups))S.fgroups=null;
   if(!S.log||typeof S.log!=="object")S.log={};for(const s of S.plan.sessions)if(s.menu&&typeof s.menu!=="object")delete s.menu;
   rebuildLib();pruneRefs();
   return true;
@@ -832,14 +843,16 @@ function render(){if(modalOpen())return;renderNav();({retete:viewRecipes,simple:
 function rerender(){if(modalOpen()&&modalCtx)modalCtx();else render()}
 
 /* ================= Rețete ================= */
-const F={cat:"toate",q:"",tags:new Set(),tools:new Set(),diet:new Set(),time:0,prot:0,kcal:0,cost:0,diff:0,pers:"",sort:"rec",dir:1,open:false,sel:false};
+const F={col:"",cat:"toate",q:"",tags:new Set(),tools:new Set(),diet:new Set(),time:0,prot:0,kcal:0,cost:0,diff:0,pers:"",sort:"rec",dir:1,open:false,sel:false};
 const SEL=new Set();
 const TOOLS=["cuptor","aragaz","air fryer","blender","fără gătit","congelator"];
 const DIETF=["vegetarian","vegan","pescetarian","fără lactoze","fără gluten"];
-const OTHER=["♥ favorite","high-protein","se congelează","ține ≥ 4 zile","bogat în fibre","ieftin"];
+const OTHER=["high-protein","se congelează","ține ≥ 4 zile","bogat în fibre","ieftin"];
 const SORTS=[["rec","Ordinea din bibliotecă",1],["name","Nume",1],["kcal","Calorii",1],["p","Proteine",-1],["pk","Proteine la 100 kcal",-1],["time","Timp total",1],["cost","Cost pe porție",1],["fib","Fibre",-1]];
+const hostOf=u=>{try{return new URL(u).hostname.replace(/^www\./,"")}catch(e){return""}};
 const hasCat=r=>r.cats.some(c=>CAT[c]);
 function match(r){
+  if(F.col&&!colHas(F.col,r.id))return false;
   if(F.cat==="__none"){if(hasCat(r))return false}else if(F.cat!=="toate"&&!r.cats.includes(F.cat))return false;
   for(const t of F.tags){if(t==="♥ favorite"){if(!S.fav.includes(r.id))return false}else if(!r.tags.includes(t))return false}
   for(const t of F.tools)if(!r.tt.includes(t))return false;
@@ -867,6 +880,7 @@ function card(r){const n=r.nut,fav=S.fav.includes(r.id),sel=F.sel&&SEL.has(r.id)
       <div class="ph">${imgHTML(r,"ph",48)}</div>
       ${catBadge(r)}${F.sel?`<label class="selbox"><input type="checkbox" class="cbx" data-selr="${r.id}" ${sel?"checked":""} aria-label="Selectează ${esc(r.name)}"></label>`:""}
       <button class="fav" data-fav="${r.id}" aria-pressed="${fav}" aria-label="${fav?"Scoate de la":"Adaugă la"} favorite">${spr(fav?"heart":"heart0",20)}</button>
+      ${r.src.url&&!F.sel?`<a class="srcl" href="${esc(r.src.url)}" target="_blank" rel="noopener" title="Rețeta originală: ${esc(r.src.name||hostOf(r.src.url))} (tab nou)" aria-label="Deschide rețeta originală într-un tab nou">↗</a>`:""}
     </div>
     <button class="open" data-open="${r.id}">
       <h3>${esc(r.name)}</h3>
@@ -874,13 +888,14 @@ function card(r){const n=r.nut,fav=S.fav.includes(r.id),sel=F.sel&&SEL.has(r.id)
       ${macroBar(n)}${macroPct(n)}
       <div class="stats"><span><b>${n.kcal}</b>kcal</span><span><b>${fmt(n.p)} g</b>proteine</span><span><b>${r.prep+r.cook}′</b>timp</span><span><b>${fmt(r.cost,1)}</b>lei</span></div>
     </button>
-    ${F.sel?"":`<div class="actions"><button class="btn sm paper" data-addplan="${r.id}">+ În plan</button>${r.nutMiss.length&&r.nutSrc==="calc"?`<span class="badge b-warn" title="${esc(r.nutMiss.join(", "))}">nutriție incompletă</span>`:""}</div>`}
+    ${F.sel?"":`<div class="actions"><button class="btn sm paper" data-addplan="${r.id}">+ În plan</button><button class="btn sm paper" data-colpick="${r.id}" title="Colecții">${spr("book",16)} ${(()=>{const k=S.cols.filter(c=>c.ids.includes(r.id)).length;return k?k+(k===1?" colecție":" colecții"):"Colecții"})()}</button>${r.nutMiss.length&&r.nutSrc==="calc"?`<span class="badge b-warn" title="${esc(r.nutMiss.join(", "))}">nutriție incompletă</span>`:""}</div>`}
   </article>`}
 function chipGroup(title,items,isOn,attr){return `<div class="fgroup"><b>${title}</b><div class="seg">${items.map(([v,l])=>`<button class="chip" ${attr}="${esc(v)}" aria-pressed="${isOn(v)}">${l}</button>`).join("")}</div></div>`}
 function viewRecipes(){
   const counts={toate:RECIPES.length,__none:0};RECIPES.forEach(r=>{let any=false;for(const c of new Set(r.cats))if(CAT[c]){counts[c]=(counts[c]||0)+1;any=true}if(!any)counts.__none++});
   if(F.cat!=="toate"&&F.cat!=="__none"&&!CAT[F.cat])F.cat="toate";
   for(const id of [...SEL])if(!R[id])SEL.delete(id);
+  if(F.col&&!colById(F.col))F.col="";
   const list=sortList(RECIPES.filter(match)),na=activeFilters();
   const cats=[{id:"toate",name:"Toate",s:"basket"},...CATS,...(counts.__none?[{id:"__none",name:"Fără categorie",s:"note"}]:[])];
   $("#view").innerHTML=`
@@ -891,6 +906,9 @@ function viewRecipes(){
     <button class="btn sm paper" id="libIO">${spr("note",16)} Import / export</button>
     <button class="btn sm paper" id="selMode" aria-pressed="${F.sel}">${F.sel?"✓ Gata cu selecția":"Selectează mai multe"}</button>
   </div>
+  <div class="colbar" role="toolbar" aria-label="Colecții"><b class="small">${spr("book",16)} Colecții</b>
+    ${[{id:"",n:"Toate",s:null},...colList()].map(c=>`<button class="chip" data-fcol="${c.id}" aria-pressed="${F.col===c.id}">${c.s?spr(c.s,14)+" ":""}${esc(c.n)}${c.id?` <span class="small muted">${c.ids.filter(id=>R[id]).length}</span>`:""}</button>`).join("")}
+    <button class="tiny" id="colMan">✎ colecții</button></div>
   <div class="cats" role="toolbar" aria-label="Categorii">
     ${cats.map(c=>`<button class="cat" data-cat="${c.id}" aria-pressed="${F.cat===c.id}">${spr(c.s,30)}<span>${esc(c.name)}</span><span class="muted small">${counts[c.id]||0}</span></button>`).join("")}
   </div>
@@ -916,27 +934,30 @@ function viewRecipes(){
   </div>
   ${list.length?`<div class="grid">${list.map(card).join("")}</div>
     <p class="small muted" style="margin-top:12px">Bara colorată arată din ce vin caloriile: proteine (P), carbohidrați (C) și grăsimi (G).</p>`
+   :F.col&&!RECIPES.some(r=>colHas(F.col,r.id))?`<div class="panel empty">${spr(colById(F.col).s,40)}<b>Colecția „${esc(colById(F.col).n)}” e goală</b><span class="muted small">Adaugă rețete din butonul ${spr("book",14)} de pe fiecare rețetă sau din „Selectează mai multe”.</span></div>`
    :RECIPES.length?`<div class="panel empty">${spr("leaf",40)}<b>Nicio rețetă nu se potrivește.</b><span class="muted small">Scoate un filtru sau schimbă categoria.</span><button class="btn sm" id="freset2">Șterge filtrele</button></div>`
    :`<div class="panel empty">${spr("book",40)}<b>Biblioteca e goală</b><span class="muted small">Adaugă o rețetă de mână sau importă un fișier (ex. făcut cu AI).</span><button class="btn sm" id="emptyIO">Import / export</button></div>`}
   ${F.sel?`<div class="bulkbar" role="region" aria-label="Acțiuni pentru selecție"><b>${SEL.size} ${SEL.size===1?"selectată":"selectate"}</b>
     <button class="tiny" id="bAll">Toate cele afișate (${list.length})</button><button class="tiny" id="bNone" ${SEL.size?"":"disabled"}>Niciuna</button>
-    <span class="grow"></span><button class="btn sm paper" id="bCat" ${SEL.size?"":"disabled"}>Categorii…</button><button class="btn sm paper" id="bExp" ${SEL.size?"":"disabled"}>Exportă</button><button class="btn sm red" id="bDel" ${SEL.size?"":"disabled"}>Șterge</button></div><div style="height:130px" aria-hidden="true"></div>`:""}`;
+    <span class="grow"></span><button class="btn sm paper" id="bCat" ${SEL.size?"":"disabled"}>Categorii…</button><button class="btn sm paper" id="bCol" ${SEL.size?"":"disabled"}>Colecții…</button><button class="btn sm paper" id="bExp" ${SEL.size?"":"disabled"}>Exportă</button><button class="btn sm red" id="bDel" ${SEL.size?"":"disabled"}>Șterge</button></div><div style="height:130px" aria-hidden="true"></div>`:""}`;
   const q=$("#q");q.addEventListener("input",()=>{F.q=q.value.trim();const pos=q.selectionStart;viewRecipes();const n=$("#q");n.focus();n.setSelectionRange(pos,pos)});
   $("#ftoggle").onclick=()=>{F.open=!F.open;viewRecipes()};
   $("#fsort").onchange=e=>{F.sort=e.target.value;F.dir=(SORTS.find(x=>x[0]===F.sort)||[0,0,1])[2];viewRecipes()};
   $("#fdir").onclick=()=>{F.dir=F.dir<0?1:-1;viewRecipes()};
-  $("#newRx").onclick=()=>editRecipe(null);$("#libCats").onclick=catManager;$("#libIO").onclick=libHub;
+  $("#newRx").onclick=()=>editRecipe(null);$("#colMan").onclick=colManager;
+  $("#view").querySelectorAll("[data-fcol]").forEach(b=>b.onclick=()=>{F.col=b.dataset.fcol;viewRecipes()});$("#libCats").onclick=catManager;$("#libIO").onclick=libHub;
   const eio=$("#emptyIO");if(eio)eio.onclick=libHub;
   $("#selMode").onclick=()=>{F.sel=!F.sel;if(!F.sel)SEL.clear();viewRecipes()};
   if(F.sel){const V=$("#view");
     V.querySelectorAll("[data-selr]").forEach(c=>c.onchange=()=>{c.checked?SEL.add(c.dataset.selr):SEL.delete(c.dataset.selr);viewRecipes()});
     $("#bAll").onclick=()=>{list.forEach(r=>SEL.add(r.id));viewRecipes()};$("#bNone").onclick=()=>{SEL.clear();viewRecipes()};
-    $("#bCat").onclick=()=>bulkCats([...SEL]);$("#bExp").onclick=()=>exportModal([...SEL]);$("#bDel").onclick=()=>deleteRecipes([...SEL])}
+    $("#bCat").onclick=()=>bulkCats([...SEL]);$("#bCol").onclick=()=>colPicker([...SEL]);$("#bExp").onclick=()=>exportModal([...SEL]);$("#bDel").onclick=()=>deleteRecipes([...SEL])}
   const reset=()=>{F.tags.clear();F.tools.clear();F.diet.clear();F.time=F.prot=F.kcal=F.cost=F.diff=0;F.pers="";F.q="";viewRecipes()};
   const fr=$("#freset");if(fr)fr.onclick=reset;const fr2=$("#freset2");if(fr2)fr2.onclick=reset;
 }
 const tog=(set,v)=>set.has(v)?set.delete(v):set.add(v);
 document.addEventListener("click",e=>{
+  const cp=e.target.closest("[data-colpick]");if(cp){colPicker([cp.dataset.colpick]);return}
   const t=e.target.closest("[data-cat],[data-ftag],[data-ftool],[data-fdiet],[data-ftime],[data-fprot],[data-fkcal],[data-fcost],[data-fdiff],[data-fpers],[data-fav],[data-open],[data-addplan],[data-openm]");if(!t)return;
   const d=t.dataset;
   if(d.cat!==undefined){F.cat=d.cat;viewRecipes()}
@@ -986,6 +1007,7 @@ function drawRecipe(){
       <button class="btn" data-addplan="${id}">+ În plan</button>
       <button class="btn paper" data-fav="${id}" aria-pressed="${fav}">${spr(fav?"heart":"heart0",18)} ${fav?"Favorită":"Favorite"}</button>
     </div>
+    <div class="row" style="gap:6px"><b class="small">${spr("book",16)} Colecții:</b>${colList().map(c=>`<button class="chip" data-ctog="${c.id}" aria-pressed="${c.ids.includes(id)}">${spr(c.s,14)} ${esc(c.n)}</button>`).join("")}<button class="tiny" data-colpick="${id}">+ nouă</button></div>
     <div class="row" style="gap:6px"><button class="tiny" data-rxedit="${id}">✎ Editează</button><button class="tiny" data-rxdup="${id}">Duplică</button><button class="tiny" data-rxexp="${id}">Exportă</button><button class="tiny" data-rxdel="${id}">Șterge</button>
       ${isCustom(id)?`<span class="small muted">${BASE_IDS.has(id)?"modificată de voi":"adăugată de voi"}</span>`:""}</div>
     ${S.people.length?`<div class="row" style="gap:8px">${S.people.map(p=>{const c=compat(r,p);return `<span class="badge ${c.ok?"b-ok":"b-bad"}">${avHTML(p,"sm")} ${esc(p.name)}: ${c.ok?"potrivit":esc(c.why.join(", "))}</span>`}).join("")}</div>`:""}
@@ -1055,6 +1077,7 @@ function drawRecipe(){
   o.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{const c=sheetState.m;const st=c<1||(b.dataset.m==="-"&&c<=1)?.25:.5;sheetState.m=Math.min(40,Math.max(.25,Math.round((c+(b.dataset.m==="+"?st:-st))*4)/4));drawRecipe()});
   o.querySelectorAll("[data-mset]").forEach(b=>b.onclick=()=>{sheetState.m=+b.dataset.mset;drawRecipe()});
   o.querySelector("[data-rxedit]").onclick=()=>editRecipe(id);
+  o.querySelectorAll("[data-ctog]").forEach(b=>b.onclick=()=>{const c=b.dataset.ctog;colSet(c,id,!colHas(c,id));save();drawRecipe()});
   o.querySelector("[data-rxdup]").onclick=()=>{const f=toFriendly(S.lib.rx[id]||RX0.find(x=>x.id===id));f.id="";f.name=f.name+" (copie)";editRecipe(null,f)};
   o.querySelector("[data-rxexp]").onclick=()=>exportModal([id]);
   o.querySelector("[data-rxdel]").onclick=()=>deleteRecipes([id]);
@@ -1771,6 +1794,7 @@ function exportDoc(ids,withFoods){
   const doc={format:FMT,version:1,app:"Cute Meal Planner",exported:new Date().toISOString(),
     categories:CATS.filter(c=>cats.has(c.id)).map(c=>({id:c.id,name:c.name,icon:c.s,role:c.role||""})),
     ingredients:[...used].filter(k=>ING[k]&&!ING0[k]).map(ingDef),recipes:fr};
+  const exp=new Set(fr.map(r=>r.id));const cl=colList().map(c=>({id:c.id,name:c.n,icon:c.s,recipes:c.ids.filter(id=>exp.has(id))})).filter(c=>c.recipes.length);if(cl.length)doc.collections=cl;
   if(withFoods){doc.foodGroups=FGROUPS.filter(g=>fs.some(f=>f.grp===g.id)).map(g=>({id:g.id,name:g.n,icon:g.s}));doc.foods=fs.map(foodToF)}return doc}
 /* citește textul lipit: JSON curat, într-un bloc ```json sau cu text în jur */
 function parseLibText(text){let t=String(text||"").replace(/^﻿/,"").trim();if(!t)throw new Error("Lipește întâi textul sau alege un fișier.");
@@ -1781,7 +1805,7 @@ function parseLibText(text){let t=String(text||"").replace(/^﻿/,"").trim();if(
   if(o&&o.app==="cute-meal-planner"&&o.data)throw new Error("Ăsta e un backup complet al aplicației. Îl imporți din Setări → Backup.");
   if(Array.isArray(o))o={recipes:o};else if(o&&!o.recipes&&!o.foods&&(o.name||o.title))o={recipes:[o]};
   if(!o||typeof o!=="object")throw new Error("Format necunoscut.");
-  return{categories:arr(o.categories),foodGroups:arr(o.foodGroups),ingredients:arr(o.ingredients),recipes:arr(o.recipes),foods:arr(o.foods),skipped:arr(o.skipped)}}
+  return{collections:arr(o.collections),categories:arr(o.categories),foodGroups:arr(o.foodGroups),ingredients:arr(o.ingredients),recipes:arr(o.recipes),foods:arr(o.foods),skipped:arr(o.skipped)}}
 /* analizează un document: ce se creează, ce se înlocuiește, ce lipsește */
 function analyzeDoc(doc,opts={}){
   const ctx={cats:new Map(),fgs:new Map(),ings:new Map(),defs:new Map(),ids:new Set()};
@@ -1855,7 +1879,7 @@ function analyzeDoc(doc,opts={}){
       id=existing||uniqKey(want,taken);
       if(ctx.ids.has(id)){existing=null;id=uniqKey(want,taken)}}
     ctx.ids.add(id);raw.id=id;
-    items.push({ix,raw,warns:w,existing:opts.mode==="replace"?null:existing})});
+    items.push({ix,raw,src:String(o.id||""),warns:w,existing:opts.mode==="replace"?null:existing})});
   doc.foods.forEach((o,ix)=>{const w=[];if(!o||!(o.name||o.n)){foods.push({ix,err:"fără nume"});return}
     const name=String(o.name||o.n).trim(),por=o.portion||{};let k=null;
     const ingv=o.ingredient;
@@ -1865,7 +1889,7 @@ function analyzeDoc(doc,opts={}){
     const d=ING[k]||ctx.ings.get(k);const g=num(por.qty??o.grams)||(d.u==="buc"?1:100);
     const id=String(o.id||"fd-"+slug(name));
     foods.push({ix,raw:{id,n:name,s:ICONS.includes(o.icon)?o.icon:guessIcon(name),grp:resolveFG(o.group),k,g,lbl:String(por.label||o.label||"")},warns:w,existing:S.foods.some(f=>f.id===id)?id:null})});
-  return{items,foods,ctx,skipped:doc.skipped}}
+  return{items,foods,ctx,skipped:doc.skipped,cols:arr(doc.collections).filter(c=>c&&(c.name||c.id))}}
 /* aplică importul */
 function commitImport(an,mode,pickR,pickF){
   const rs=an.items.filter((x,i)=>x.raw&&pickR.has(i)),fs=an.foods.filter((x,i)=>x.raw&&pickF.has(i));
@@ -1878,6 +1902,11 @@ function commitImport(an,mode,pickR,pickF){
   const usedG=new Set(fs.map(x=>x.raw.grp)),newG=[...an.ctx.fgs.values()].filter(g=>usedG.has(g.id));
   if(newG.length)S.fgroups=[...(S.fgroups||BASE_FGROUPS.map(g=>({...g}))),...newG];
   for(const x of fs){const i=S.foods.findIndex(f=>f.id===x.raw.id);if(i>=0)S.foods[i]=x.raw;else S.foods.push(x.raw)}
+  /* colecțiile din fișier: se adaugă rețetele importate în colecția cu același nume (sau se creează) */
+  for(const c of an.cols||[]){const ids=arr(c.recipes).map(sid=>{const x=rs.find(y=>y.src===String(sid)||y.raw.id===slug(sid));return x&&x.raw.id}).filter(Boolean);if(!ids.length)continue;
+    let cid=c.id==="fav"?"fav":(S.cols.find(k=>norm(k.n)===norm(c.name||c.id))||{}).id;
+    if(!cid){cid=uniqKey(slug(c.name||c.id),k=>k==="fav"||S.cols.some(x=>x.id===k));S.cols.push({id:cid,n:String(c.name||c.id),s:ICONS.includes(c.icon)?c.icon:"star",ids:[]})}
+    for(const id of ids)colSet(cid,id,true)}
   rebuildLib();pruneRefs();save();return{r:rs.length,f:fs.length,c:newC.length}}
 
 /* ================= Hub: import / export / AI ================= */
@@ -2208,7 +2237,7 @@ function viewFoods(){
   ${list.length?GS.map(g=>{const fs=list.filter(f=>inGrp(f,g.id));if(!fs.length)return"";return `<section style="margin-bottom:16px"><h3 class="sec-title">${spr(g.s,22)} ${esc(g.n)}</h3><div class="fgrid">${fs.map(f=>`<article class="fcard">
     <div class="fico">${spr(f.s,40)}</div>
     <div style="min-width:0"><h4>${esc(f.n)}</h4><div class="small muted">${esc(f.lbl||"")}${f.lbl?" · ":""}${amt(f.g,f.u)}</div>
-      ${f.noval?`<span class="badge b-warn">fără valori</span>`:`<div class="small"><b>${fmt(f.nut.kcal)}</b> kcal · <b>${fmt(f.nut.p,1)}</b> g P${f.cost?` · ${fmt(f.cost,1)} lei`:""}</div>${macroBar(f.nut)}`}</div>
+      ${f.noval?`<span class="badge b-warn">fără valori</span>`:`<div class="small"><b>${fmt(f.nut.kcal)}</b> kcal · <b>${fmt(f.nut.p,1)}</b> g P${f.cost?` · ${fmt(f.cost,1)} lei`:""}</div>${macroBar(f.nut)}${macroPct(f.nut)}`}</div>
     <div class="factions"><button class="btn sm paper" data-fplan="${f.id}">+ În plan</button><button class="tiny" data-fedit="${f.id}" aria-label="Editează ${esc(f.n)}">✎</button></div></article>`).join("")}</div></section>`}).join("")
    :`<div class="panel empty">${spr("f_apple",40)}<b>${FOODS.length?"Nimic nu se potrivește":"Nicio mâncare simplă"}</b><span class="muted small">${FOODS.length?"Schimbă căutarea.":"Adaugă fructe, gustări sau produse gata făcute."}</span></div>`}`;
   const fq=$("#fq");fq.addEventListener("input",()=>{FQ=fq.value;const pos=fq.selectionStart;viewFoods();const n=$("#fq");n.focus();n.setSelectionRange(pos,pos)});
@@ -2314,15 +2343,54 @@ function fgroupManager(){let open=null,ask=null;modalCtx=()=>draw();
   };draw();
 }
 
+/* Colecții: alege în ce colecții e o rețetă (sau mai multe deodată) */
+function colPicker(ids){ids=ids.filter(id=>R[id]);if(!ids.length)return;let nn="";const prevCtx=modalCtx;modalCtx=()=>draw();
+  const draw=()=>{openModal(`<div class="sheet-h"><h2>${ids.length===1?"Colecții":"Colecții pentru "+ids.length+" rețete"}</h2>${xbtn()}</div><div class="sheet-b">
+    <p class="small muted" style="margin:0">${ids.length===1?esc(R[ids[0]].name)+". ":""}Atinge o colecție ca s-o adaugi sau s-o scoți${ids.length>1?" (pentru toate cele selectate)":""}. O rețetă poate fi în oricâte.</p>
+    <div class="seg">${colList().map(c=>{const n=ids.filter(id=>c.ids.includes(id)).length;return `<button class="chip" data-cp="${c.id}" aria-pressed="${n===ids.length}">${spr(c.s,16)} ${esc(c.n)}${ids.length>1?` <span class="small muted">${n}/${ids.length}</span>`:""}</button>`}).join("")}</div>
+    <div class="row" style="gap:6px"><input id="ncol" class="inp" placeholder="Colecție nouă, ex. Pentru musafiri" value="${esc(nn)}" style="flex:1;min-width:160px" maxlength="30"><button class="btn sm" id="ncolAdd">+ Creează și adaugă</button></div>
+    <div class="row"><button class="btn green" data-close>Gata</button></div></div>`);
+    const o=$("#overlay");
+    o.querySelectorAll("[data-cp]").forEach(b=>b.onclick=()=>{const c=b.dataset.cp,all=ids.every(id=>colHas(c,id));for(const id of ids)colSet(c,id,!all);save();draw()});
+    $("#ncol").oninput=e=>{nn=e.target.value};
+    $("#ncolAdd").onclick=()=>{const n=nn.trim();if(!n){toast("Scrie numele colecției");return}const ex=colList().find(c=>norm(c.n)===norm(n));
+      let cid=ex&&ex.id;if(!cid){cid=uniqKey(slug(n),k=>k==="fav"||S.cols.some(x=>x.id===k));S.cols.push({id:cid,n,s:guessIcon(n)==="f_plate"?"star":guessIcon(n),ids:[]})}
+      for(const id of ids)colSet(cid,id,true);nn="";save();draw()};
+  };draw();
+}
+function colManager(){let open=null,ask=null;modalCtx=()=>draw();
+  const draw=()=>{const sc=$("#overlay").scrollTop,L=S.cols,cnt=c=>c.ids.filter(id=>R[id]).length;
+    openModal(`<div class="sheet-h"><h2>Colecții</h2>${xbtn()}</div><div class="sheet-b">
+      <p class="small muted" style="margin:0">Liste ale voastre de rețete („Vreau să încerc”, „Pentru musafiri”, „Rapide”). O rețetă poate fi în mai multe. Le poți folosi ca filtru în Rețete și în meniul planului.</p>
+      <div class="catrow fgrow" style="opacity:.85">${`<span class="iconbtn" style="display:grid;place-items:center">${spr("heart",26)}</span>`}<b>Favorite</b><span class="small muted">${S.fav.filter(id=>R[id]).length} · fixă</span></div>
+      <div class="stack" style="gap:8px">${L.map((c,i)=>`<div class="catrow fgrow">
+        <button class="iconbtn" data-kico="${i}" aria-label="Schimbă iconița" aria-expanded="${open===i}">${spr(c.s,26)}</button>
+        <input data-kn="${i}" value="${esc(c.n)}" aria-label="Numele colecției" maxlength="30">
+        <span class="row" style="gap:4px;flex-wrap:nowrap"><button class="tiny" data-ku="${i}" ${i?"":"disabled"} aria-label="Mută sus">↑</button><button class="tiny" data-kd="${i}" ${i<L.length-1?"":"disabled"} aria-label="Mută jos">↓</button>
+        <button class="tiny" data-kx="${i}">${ask===i?"sigur?":"×"}</button></span>
+        <span class="tiny-t muted" style="grid-column:2/-1">${cnt(c)} ${cnt(c)===1?"rețetă":"rețete"}${ask===i?" · rețetele rămân în bibliotecă":""}</span>
+        ${open===i?`<div style="grid-column:1/-1">${iconGrid(c.s,"data-kpick")}</div>`:""}</div>`).join("")}</div>
+      <div class="row"><button class="btn sm green" id="kAdd">+ Colecție</button><button class="btn paper sm" data-close>Gata</button></div></div>`);
+    const o=$("#overlay");o.scrollTop=sc;
+    o.querySelectorAll("[data-kn]").forEach(x=>x.onchange=()=>{const v=x.value.trim();if(v){L[+x.dataset.kn].n=v;save()}});
+    o.querySelectorAll("[data-kico]").forEach(b=>b.onclick=()=>{open=open===+b.dataset.kico?null:+b.dataset.kico;draw()});
+    o.querySelectorAll("[data-kpick]").forEach(b=>b.onclick=()=>{L[open].s=b.dataset.kpick;open=null;save();draw()});
+    o.querySelectorAll("[data-ku]").forEach(b=>b.onclick=()=>{const i=+b.dataset.ku;[L[i-1],L[i]]=[L[i],L[i-1]];save();draw()});
+    o.querySelectorAll("[data-kd]").forEach(b=>b.onclick=()=>{const i=+b.dataset.kd;[L[i+1],L[i]]=[L[i],L[i+1]];save();draw()});
+    o.querySelectorAll("[data-kx]").forEach(b=>b.onclick=()=>{const i=+b.dataset.kx;if(ask!==i){ask=i;draw();return}if(F.col===L[i].id)F.col="";L.splice(i,1);ask=null;save();draw()});
+    $("#kAdd").onclick=()=>{const id=uniqKey("colectie",k=>S.cols.some(x=>x.id===k));L.push({id,n:"Colecție nouă",s:"star",ids:[]});open=L.length-1;save();draw();const ins=o.querySelectorAll("[data-kn]");const x=ins[ins.length-1];if(x){x.focus();x.select()}};
+  };draw();
+}
+
 /* ================= Meniul planului: ce intră în fiecare masă ================= */
 /* M = {md:[comp], pr:[comp], ci:"pr" | [comp], gu:[comp]}; comp = {t:"c" (categorie de rețete) | "f" (grupă de simple), id, v (variante; 0 = alta în fiecare zi)} */
 function defMenu(){const C=(role,v)=>{const c=CATS.find(x=>x.role===role);return c?[{t:"c",id:c.id,v}]:[]};
   return{md:C("md",1),pr:[...C("main",2),...C("side",1),...C("salad",1)],ci:"pr",gu:C("snack",1)}}
 const menuG=()=>S.menu||defMenu();
 const menuOf=s=>s&&s.menu?s.menu:menuG();
-const compPool=c=>c.t==="f"?FOODS.filter(f=>inGrp(f,c.id)):RECIPES.filter(r=>r.cats.includes(c.id));
-const compName=c=>c.t==="f"?"Simple: "+((FG[c.id]||{}).n||"grupă ștearsă").toLowerCase():((CAT[c.id]||{}).name||"categorie ștearsă");
-const compIcon=c=>c.t==="f"?((FG[c.id]||{}).s||"note"):((CAT[c.id]||{}).s||"note");
+const compPool=c=>c.t==="k"?RECIPES.filter(r=>colHas(c.id,r.id)):c.t==="f"?FOODS.filter(f=>inGrp(f,c.id)):RECIPES.filter(r=>r.cats.includes(c.id));
+const compName=c=>c.t==="k"?"Colecția: "+((colById(c.id)||{}).n||"ștearsă"):c.t==="f"?"Simple: "+((FG[c.id]||{}).n||"grupă ștearsă").toLowerCase():((CAT[c.id]||{}).name||"categorie ștearsă");
+const compIcon=c=>c.t==="k"?((colById(c.id)||{}).s||"note"):c.t==="f"?((FG[c.id]||{}).s||"note"):((CAT[c.id]||{}).s||"note");
 const varLabel=v=>+v===1?"aceeași":+v>1?v+" variante":"alta în fiecare zi";
 const foodR=f=>({x:(ING[f.k]||{}).x||"",ing:[{k:f.k}]});
 const okFor=(it,p,isF)=>compat(isF?foodR(it):it,p).ok;
@@ -2352,14 +2420,14 @@ function genSession(s,rand,used){
     const base=typeof M[sl]==="string"?M[sl]:sl,comps=M[base];if(!Array.isArray(comps)||!comps.length)continue;
     const diners=[];for(const d of days)for(const p of S.people)if(cov(p,sl,d))diners.push({d,p});if(!diners.length)continue;
     const dl=[...new Set(diners.map(x=>x.d))],ppl=[...new Set(diners.map(x=>x.p))];
-    const roles=comps.map(c=>c.t==="c"?((CAT[c.id]||{}).role||""):"f"),hasSoup=roles.includes("soup"),multi=comps.filter(c=>c.t==="c").length>1;
-    comps.forEach((c,ci)=>{if(c.t==="c"&&!CAT[c.id])return;const key=base+"|"+ci;let vars=chosen.get(key);
+    const roles=comps.map(c=>c.t==="c"?((CAT[c.id]||{}).role||""):c.t==="k"?"k":"f"),hasSoup=roles.includes("soup"),multi=comps.filter(c=>c.t!=="f").length>1;
+    comps.forEach((c,ci)=>{if(c.t==="c"&&!CAT[c.id])return;if(c.t==="k"&&!colById(c.id))return;const key=base+"|"+ci;let vars=chosen.get(key);
       if(!vars){vars=pick(c,+c.v>0?+c.v:dl.length,ppl);chosen.set(key,vars)}
       if(!vars.length)return;const isF=c.t==="f",shift=base!==sl&&vars.length>1?1:0;
       for(const {d,p} of diners){let it=vars[(Math.min(vars.length-1,Math.floor(dl.indexOf(d)*vars.length/dl.length))+shift)%vars.length];
         if(!okFor(it,p,isF)){it=vars.find(x=>okFor(x,p,isF))||compPool(c).find(x=>okFor(x,p,isF));if(!it)continue}
         let e;if(isF)e={s:it.id,m:1,a:1};
-        else{let f=1;const ro=(CAT[c.id]||{}).role||it.role;if(multi){if(ro==="soup")f=.6;else if(ro==="salad")f=.5;else if(hasSoup&&(ro==="main"||ro==="side"))f=.75}e={b:batchFor(it.id),m:r4(p.mult*f)}}
+        else{let f=1;const ro=(c.t==="c"&&(CAT[c.id]||{}).role)||it.role;if(multi){if(ro==="soup")f=.6;else if(ro==="salad")f=.5;else if(hasSoup&&(ro==="main"||ro==="side"))f=.75}e={b:batchFor(it.id),m:r4(p.mult*f)}}
         setEntries(d,sl,p.id,[...entries(d,sl,p.id),e])}})}
 }
 /* Cât de departe e planul de ținte (mai mic = mai bine) */
@@ -2400,7 +2468,7 @@ function menuEditor(sid){const s=sid?sesById(sid):null;let M=JSON.parse(JSON.str
         :`${comps.map((c,i)=>{const n=compPool(c).length;return `<div class="mrow">${spr(compIcon(c),20)}<span class="grow" style="min-width:0">${esc(compName(c))} <span class="tiny-t muted">· ${n} ${c.t==="f"?"simple":"rețete"}</span>${n?"":` <span class="badge b-warn">nu ai nimic aici</span>`}</span>
             <select data-mv="${sl.id}|${i}" aria-label="Câte variante">${[[1,"aceeași"],[2,"2 variante"],[3,"3 variante"],[4,"4 variante"],[0,"alta în fiecare zi"]].map(([x,l])=>`<option value="${x}" ${+c.v===x?"selected":""}>${l}</option>`).join("")}</select>
             <button class="tiny" data-mx="${sl.id}|${i}" aria-label="Scoate">×</button></div>`}).join("")||`<p class="tiny-t muted" style="margin:0">Nimic: masa asta nu se gătește (o poți completa de mână în calendar).</p>`}
-          <select class="sel" data-madd="${sl.id}" aria-label="Adaugă în ${sl.n}"><option value="">+ adaugă la ${sl.n.toLowerCase()}…</option><optgroup label="Categorii de rețete">${CATS.map(c=>`<option value="c|${c.id}">${esc(c.name)}</option>`).join("")}</optgroup><optgroup label="Mâncăruri simple">${FGROUPS.map(g=>`<option value="f|${g.id}">${esc(g.n)}</option>`).join("")}</optgroup></select>`}
+          <select class="sel" data-madd="${sl.id}" aria-label="Adaugă în ${sl.n}"><option value="">+ adaugă la ${sl.n.toLowerCase()}…</option><optgroup label="Categorii de rețete">${CATS.map(c=>`<option value="c|${c.id}">${esc(c.name)}</option>`).join("")}</optgroup><optgroup label="Colecții de rețete">${colList().map(c=>`<option value="k|${c.id}">${esc(c.n)}</option>`).join("")}</optgroup><optgroup label="Mâncăruri simple">${FGROUPS.map(g=>`<option value="f|${g.id}">${esc(g.n)}</option>`).join("")}</optgroup></select>`}
         </section>`}).join("")}
       <div class="row">${s?`<button class="btn green" id="mGen">Salvează și generează ziua asta</button><button class="btn paper" id="mSave">Doar salvează</button>${s.menu?`<button class="btn paper sm" id="mGen0">Folosește meniul general</button>`:""}`
         :`<button class="btn green" id="mGen">Salvează și fă plan nou</button><button class="btn paper" id="mSave">Doar salvează</button><button class="btn paper sm" id="mReset">Meniul de bază</button>`}</div></div>`);
