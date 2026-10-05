@@ -389,6 +389,33 @@ output.numed .nu{font-size:12px;color:var(--muted)}
 .sesmini .mini{display:inline-flex;align-items:center;gap:5px;border:1.5px solid var(--wood-l);border-radius:999px;padding:2px 9px 2px 3px;font-size:13px;cursor:pointer;background:var(--panel);max-width:100%}
 .sesmini .mini span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px}
 @media (prefers-reduced-motion:reduce){.sestog .chev{transition:none}}
+.overlay:has(.sheet.calfull){padding:0;overflow:hidden}
+.sheet.calfull{width:100%;max-width:none;height:100vh;height:100dvh;border-radius:0;border-width:0;box-shadow:none;margin:0;display:flex;flex-direction:column}
+.sheet.calfull .sheet-b{flex:1;min-height:0;display:flex;flex-direction:column}
+.calfw{flex:1;min-height:0;overflow:auto}
+.cal.calf thead th{position:sticky;top:0;z-index:2;background:var(--panel)}
+.cal.calf th.slot{position:sticky;left:0;z-index:1;background:var(--panel)}
+.cal.calf thead th.slot{z-index:3}
+.cal.calf .cell{align-items:stretch;justify-content:flex-start;text-align:left}
+.plf{display:grid;gap:2px;padding:4px 0;border-bottom:1px dashed var(--wood-l)}.plf:last-child{border-bottom:0}
+.plf .fe{display:flex;align-items:center;gap:5px;font-size:12.5px;line-height:1.2}
+.lstrip{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;margin-bottom:6px}
+.lcard{flex:none;display:grid;gap:4px;min-width:150px;max-width:220px;text-align:left;cursor:pointer;background:var(--panel);border:3px solid var(--wood-d);border-radius:12px;padding:8px 10px;box-shadow:0 3px 0 var(--wood-d)}
+.lcard b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lcard.on{background:var(--butter-soft);border-color:var(--wood-d);transform:translateY(-2px)}
+.lcard.add{border-style:dashed;box-shadow:none}
+.bar.mini{height:6px}
+.hrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border:2px solid var(--wood-l);border-radius:10px;background:var(--panel)}
+.hrow.on{border-color:var(--wood-d);background:var(--butter-soft)}
+.pickl{display:flex;align-items:center;gap:8px;padding:8px 10px;border:2px solid var(--wood-l);border-radius:10px;cursor:pointer;background:var(--panel)}
+.pickl.on{border-color:var(--leaf-d);background:var(--leaf-soft)}
+.tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.tool{display:flex;align-items:center;gap:4px;border:2px solid var(--leaf-d);border-radius:10px;background:var(--leaf-soft);padding:2px 4px 2px 2px}
+.tool.off{border:2px dashed var(--wood-l);background:var(--panel);opacity:.7}
+.tooltog{all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:4px 6px;border-radius:8px}
+.tooltog:focus-visible{outline:3px solid var(--butter)}
+.tooltog span{display:grid;min-width:0}.tooltog b{font-size:14px}.tooltog small{font-size:12px;color:var(--muted)}
+.tool.off b{text-decoration:line-through}
 .impr{border:2px solid var(--wood-l);border-radius:10px;padding:8px;background:var(--panel)}
 .impr details summary{cursor:pointer;color:var(--muted)}
 .tip.soft{background:var(--sky-soft);border-color:var(--wood-l)}
@@ -430,7 +457,9 @@ label.row>input[type=radio],label.row>input[type=checkbox]{flex:none;margin-top:
   .catrow{grid-template-columns:auto minmax(0,1fr) auto}
   .catrow select{grid-column:2/-1;grid-row:2}
   .catrow .tiny-t{grid-row:3}
-  nav.shelf button span.l{font-size:10.5px}
+  nav.shelf .in{gap:0}
+  nav.shelf button{padding:4px 0}
+  nav.shelf button span.l{font-size:clamp(8.6px,2.45vw,10.5px);letter-spacing:-.03em;overflow:visible;text-overflow:clip}
 }
 </style>
 </head>
@@ -665,6 +694,15 @@ const colById=id=>colList().find(c=>c.id===id);
 const colHas=(cid,rid)=>{const c=colById(cid);return!!c&&c.ids.includes(rid)};
 function colSet(cid,rid,on){if(cid==="fav"){S.fav=on?[...new Set([...S.fav,rid])]:S.fav.filter(x=>x!==rid);return}const c=S.cols.find(x=>x.id===cid);if(!c)return;c.ids=on?[...new Set([...c.ids,rid])]:c.ids.filter(x=>x!==rid)}
 const colsOf=rid=>colList().filter(c=>c.ids.includes(rid));
+/* ===== Unelte de bucătărie: implicit le aveți pe toate; S.kitchen.miss = ce lipsește, S.kitchen.custom = unelte adăugate de voi ===== */
+const KTOOLS=[{id:"cuptor",s:"flame",tt:"cuptor"},{id:"aragaz",s:"pot",tt:"aragaz"},{id:"air fryer",s:"f_chicken",tt:"air fryer"},{id:"blender",s:"f_smoothie",tt:"blender"},
+  {id:"congelator",s:"fridge",tt:"congelator"},{id:"microunde",s:"clock",re:/microunde/},{id:"robot de bucătărie",s:"f_salad",re:/robot/},{id:"mixer",s:"f_cake",re:/mixer|tel electric/},
+  {id:"tavă de brioșe",s:"f_cupcake",re:/briose/},{id:"tigaie",s:"f_pan",re:/tigaie/},{id:"termometru de carne",s:"note",re:/termometru/},{id:"cântar de bucătărie",s:"basket",re:/cantar/},
+  {id:"slow cooker / multicooker",s:"f_stew",re:/slow cooker|multicooker/}];
+const allTools=()=>[...KTOOLS,...(S.kitchen.custom||[]).map(n=>({id:n,s:"star",custom:true,re:new RegExp("\\b"+norm(n).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b")}))];
+function reqTools(r){const t=norm((r.tools||[]).join(" ")),out=[];for(const k of allTools())if((k.tt&&r.tt.includes(k.tt))||(k.re&&k.re.test(t)))out.push(k.id);return out}
+const missingTools=r=>reqTools(r).filter(id=>S.kitchen.miss.includes(id));
+const haveTools=r=>!missingTools(r).length;
 /* curăță referințele la rețete / mâncăruri care nu mai există */
 function pruneRefs(){
   S.plan.batches=S.plan.batches.filter(b=>R[b.rid]&&S.plan.sessions.some(s=>s.id===b.sid));
@@ -691,13 +729,16 @@ function defCover(){const c={};for(const s of BASE_SLOTS)c[s.id]=[0,1,2,3,4,5,6]
 function newPerson(i){return{id:uid(),name:"Persoana "+(i+1),av:AV[i%6],ci:i%6,mult:i===0?1.2:i===1?.9:1,
   split:{md:25,pr:35,ci:30,gu:10},t:i===1?{kcal:1600,p:100,c:170,f:55,fib:25}:{kcal:2000,p:140,c:210,f:65,fib:30},tMode:"zi",diet:"omnivor",nolac:false,nogl:false,avoid:[],cover:defCover()}}
 function defaults(){return{v:2,theme:"auto",tab:"retete",planTab:"gatim",setup:false,sample:true,fav:[],people:[newPerson(0),newPerson(1)],
-  plan:{start:nextSunday(),len:7,sessions:[{id:uid(),day:0},{id:uid(),day:3}],batches:[],meals:{}},shop:[],pantry:[],boxes:[],done:{},cookSess:null,nutP:null,nutD:1,weights:{},
+  plan:{start:nextSunday(),len:7,sessions:[{id:uid(),day:0},{id:uid(),day:3}],batches:[],meals:{}},pantry:[],boxes:[],done:{},cookSess:null,nutP:null,nutD:1,weights:{},
+  lists:[{id:uid(),n:"Cumpărături",s:"basket",c:Date.now(),fin:null,items:[]}],curList:null,kitchen:{miss:[],custom:[]},
   lib:{cats:null,rx:{},del:[],ing:{}},foods:defFoods(),cols:[{id:"incerc",n:"Vreau să încerc",s:"star",ids:[]}],menu:null,log:{},trackInv:true,nutView:"jurnal",jD:null}}
 let S;
 try{S=JSON.parse(localStorage.getItem(LS)||"null")}catch(e){S=null}
 function sane(){
   const d=defaults();
-  if(!S||typeof S!=="object"||!Array.isArray(S.people)||!S.people.length||!S.plan){S=d;rebuildLib();fixPeople();return false}
+  if(!S||typeof S!=="object"||!Array.isArray(S.people)||!S.people.length||!S.plan){S=d;rebuildLib();fixPeople();fixLists();return false}
+  /* lista unică de dinainte devine prima listă de cumpărături */
+  if(!Array.isArray(S.lists)){const old=Object.getOwnPropertyDescriptor(S,"shop");const items=old&&Array.isArray(old.value)?old.value:[];S.lists=[{id:uid(),n:"Cumpărături",s:"basket",c:Date.now(),fin:null,items}]}
   for(const k of Object.keys(d))if(S[k]===undefined)S[k]=d[k];
   for(const p of S.people){if(!p.cover)p.cover=defCover();if(!p.t)p.t=newPerson(0).t;if(!p.avoid)p.avoid=[];if(p.ci==null)p.ci=0}
   if(!(S.plan.len>=1))S.plan.len=7;
@@ -708,7 +749,8 @@ function sane(){
   if(!Array.isArray(S.cols))S.cols=d.cols;S.cols=S.cols.filter(c=>c&&c.id&&c.id!=="fav");for(const c of S.cols)if(!Array.isArray(c.ids))c.ids=[];if(S.fgroups!=null&&!Array.isArray(S.fgroups))S.fgroups=null;
   if(!S.log||typeof S.log!=="object")S.log={};for(const s of S.plan.sessions)if(s.menu&&typeof s.menu!=="object")delete s.menu;
   if(S.slots!=null&&!Array.isArray(S.slots))S.slots=null;
-  rebuildLib();fixPeople();pruneRefs();
+  if(!S.kitchen||typeof S.kitchen!=="object")S.kitchen={miss:[],custom:[]};for(const k of ["miss","custom"])if(!Array.isArray(S.kitchen[k]))S.kitchen[k]=[];
+  rebuildLib();fixPeople();fixLists();pruneRefs();
   return true;
 }
 function save(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
@@ -847,7 +889,7 @@ const itName=it=>it.k&&ING[it.k]?ING[it.k].n:(it.n||it.k||"?");
 const itAisle=it=>{const a=it.k&&ING[it.k]?ING[it.k].a:(it.a||"altele");return AISLE[a]?a:"altele"};
 const itUnit=it=>it.k&&ING[it.k]?ING[it.k].u:(it.u||"buc");
 function pantryQty(k){return S.pantry.filter(x=>x.k===k).reduce((a,x)=>a+(+x.q||0),0)}
-function shopQty(k){return S.shop.filter(x=>x.k===k&&!x.done).reduce((a,x)=>a+(+x.q||0),0)}
+function shopQty(k){return activeLists().reduce((a,l)=>a+l.items.filter(x=>x.k===k&&!x.done).reduce((b,x)=>b+(+x.q||0),0),0)}
 function amt(q,u){q=+q||0;
   if(u==="buc")return fmt(q,q%1?1:0)+" buc";
   if(u==="ml")return q>=1000?fmt(q/1000,2)+" l":fmt(Math.ceil(q/10)*10)+" ml";
@@ -856,7 +898,20 @@ function amt(q,u){q=+q||0;
   return fmt(Math.ceil(q/5)*5)+" g"}
 function countHint(k,g){const c=ING[k]&&ING[k].u!=="buc"&&ING[k].cnt;if(!c)return"";const n=g/c[0];return "≈ "+(n<1?"1":fmt(Math.ceil(n)))+" "+c[1]}
 function stepOf(u,q){if(u==="buc")return 1;if(q>=1000)return 100;if(q>=200)return 50;if(q>=40)return 10;return 5}
-function addToShop(it){const ex=S.shop.find(x=>!x.done&&keyOf(x)===keyOf(it));if(ex)ex.q=(+ex.q||0)+(+it.q||0);else S.shop.push({id:uid(),done:false,...it})}
+function addToShop(it,lid){const l=(lid&&listById(lid))||(curL()&&!curL().fin?curL():activeLists()[0])||newList();
+  const ex=l.items.find(x=>!x.done&&keyOf(x)===keyOf(it));if(ex)ex.q=(+ex.q||0)+(+it.q||0);else l.items.push({id:uid(),done:false,...it})}
+/* ===== Mai multe liste de cumpărături (Lidl, Kaufland, piață…), cu istoric =====
+   S.lists = [{id,n,s,c:creată,fin:terminată sau null,items}], S.curList = lista deschisă. S.shop arată mereu lista deschisă. */
+const listById=id=>S.lists.find(l=>l.id===id);
+const curL=()=>listById(S.curList);
+const activeLists=()=>S.lists.filter(l=>!l.fin).sort((a,b)=>b.c-a.c);
+const doneLists=()=>S.lists.filter(l=>l.fin).sort((a,b)=>b.fin-a.fin);
+const shortDate=t=>new Date(t).toLocaleDateString("ro-RO",{day:"numeric",month:"short"});
+function newList(n,s){const l={id:uid(),n:n||"Cumpărături "+shortDate(Date.now()),s:s||"basket",c:Date.now(),fin:null,items:[]};S.lists.push(l);S.curList=l.id;return l}
+function fixLists(){if(!Array.isArray(S.lists))S.lists=[];for(const l of S.lists){if(!Array.isArray(l.items))l.items=[];if(!l.c)l.c=Date.now();if(!l.s)l.s="basket"}
+  if(!activeLists().length&&!S.lists.length)newList("Cumpărături");if(!curL())S.curList=(activeLists()[0]||S.lists[0]).id;
+  if(Object.getOwnPropertyDescriptor(S,"shop")&&Object.getOwnPropertyDescriptor(S,"shop").value!==undefined)delete S.shop;
+  Object.defineProperty(S,"shop",{configurable:true,enumerable:false,get(){const l=curL();return l?l.items:[]},set(v){const l=curL()||newList();l.items=v}})}
 function addToPantry(it){const ex=S.pantry.find(x=>keyOf(x)===keyOf(it));if(ex)ex.q=(+ex.q||0)+(+it.q||0);else S.pantry.push({id:uid(),k:it.k||null,n:it.n||"",u:itUnit(it),a:itAisle(it),q:+it.q||0})}
 let fresh=!sane();
 
@@ -865,15 +920,15 @@ let lastFocus=null;
 function xbtn(){return `<button class="iconbtn x" data-close aria-label="Închide"><b style="font-size:20px;line-height:1">×</b></button>`}
 function openModal(html,cls=""){if(!lastFocus)lastFocus=document.activeElement;const o=$("#overlay");o.innerHTML=`<div class="sheet ${cls}" role="dialog" aria-modal="true">${html}</div>`;o.hidden=false;document.body.style.overflow="hidden";const x=o.querySelector("[data-close]");if(x)x.focus({preventScroll:true})}
 function modalOpen(){return !$("#overlay").hidden}
-function closeModal(){const o=$("#overlay");o.hidden=true;o.innerHTML="";document.body.style.overflow="";releaseWake();if(lastFocus&&document.contains(lastFocus))lastFocus.focus({preventScroll:true});lastFocus=null;modalCtx=null;pickCtx=null;render()}
+function closeModal(){const o=$("#overlay");if(o.querySelector(".sheet.calfull"))calFull=false;o.hidden=true;o.innerHTML="";document.body.style.overflow="";releaseWake();if(lastFocus&&document.contains(lastFocus))lastFocus.focus({preventScroll:true});lastFocus=null;modalCtx=null;pickCtx=null;render()}
 let modalCtx=null;
 $("#overlay").addEventListener("click",e=>{if(e.target.id==="overlay"||e.target.closest("[data-close]"))closeModal()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&modalOpen())closeModal()});
 
 /* ================= Navigare ================= */
-const TABS=[{id:"retete",n:"Rețete",s:"book"},{id:"simple",n:"Simple",s:"f_apple"},{id:"plan",n:"Plan",s:"cal"},{id:"nutritie",n:"Nutriție",s:"heart"},{id:"lista",n:"Listă",s:"basket"},{id:"gatit",n:"Gătit",s:"flame"},{id:"camara",n:"Cămară",s:"fridge"}];
+const TABS=[{id:"retete",n:"Rețete",s:"book"},{id:"simple",n:"Simple",s:"f_apple"},{id:"plan",n:"Plan",s:"cal"},{id:"nutritie",n:"Nutriție",s:"heart"},{id:"lista",n:"Cumpărături",s:"basket"},{id:"gatit",n:"Gătit",s:"flame"},{id:"camara",n:"Bucătărie",s:"fridge"}];
 function renderNav(){
-  const left=S.shop.filter(x=>!x.done).length;
+  const left=activeLists().reduce((a,l)=>a+l.items.filter(x=>!x.done).length,0);
   const urgent=S.boxes.filter(f=>f.where==="frigider"&&daysLeft(f)<=1).length;
   $("#nav").innerHTML=TABS.map(t=>`<button data-tab="${t.id}" ${S.tab===t.id?'aria-current="page"':""}>${spr(t.s,24)}<span class="l">${t.n}</span>
     ${t.id==="lista"&&left?`<span class="dot">${left}</span>`:""}${t.id==="camara"&&urgent?`<span class="dot">${urgent}</span>`:""}</button>`).join("");
@@ -884,7 +939,7 @@ function render(){if(modalOpen())return;renderNav();({retete:viewRecipes,simple:
 function rerender(){if(modalOpen()&&modalCtx)modalCtx();else render()}
 
 /* ================= Rețete ================= */
-const F={col:"",cat:"toate",q:"",tags:new Set(),tools:new Set(),diet:new Set(),time:0,prot:0,kcal:0,cost:0,diff:0,pers:"",sort:"rec",dir:1,open:false,sel:false};
+const F={mine:false,col:"",cat:"toate",q:"",tags:new Set(),tools:new Set(),diet:new Set(),time:0,prot:0,kcal:0,cost:0,diff:0,pers:"",sort:"rec",dir:1,open:false,sel:false};
 const SEL=new Set();
 const TOOLS=["cuptor","aragaz","air fryer","blender","fără gătit","congelator"];
 const DIETF=["vegetarian","vegan","pescetarian","fără lactoze","fără gluten"];
@@ -897,6 +952,7 @@ function match(r){
   if(F.cat==="__none"){if(hasCat(r))return false}else if(F.cat!=="toate"&&!r.cats.includes(F.cat))return false;
   for(const t of F.tags){if(t==="♥ favorite"){if(!S.fav.includes(r.id))return false}else if(!r.tags.includes(t))return false}
   for(const t of F.tools)if(!r.tt.includes(t))return false;
+  if(F.mine&&!haveTools(r))return false;
   for(const t of F.diet)if(!r.tags.includes(t))return false;
   if(F.time&&r.prep+r.cook>F.time)return false;
   if(F.prot&&r.nut.p<F.prot)return false;
@@ -907,7 +963,7 @@ function match(r){
   if(F.q){const q=F.q.toLowerCase();const h=(r.name+" "+r.desc+" "+r.ing.map(i=>ING[i.k].n).join(" ")+" "+r.tools.join(" ")+" "+r.tags.join(" ")).toLowerCase();if(!h.includes(q))return false}
   return true;
 }
-function activeFilters(){return F.tags.size+F.tools.size+F.diet.size+(F.time?1:0)+(F.prot?1:0)+(F.kcal?1:0)+(F.cost?1:0)+(F.diff?1:0)+(F.pers?1:0)}
+function activeFilters(){return (F.mine?1:0)+F.tags.size+F.tools.size+F.diet.size+(F.time?1:0)+(F.prot?1:0)+(F.kcal?1:0)+(F.cost?1:0)+(F.diff?1:0)+(F.pers?1:0)}
 function sortList(l){const k=F.sort,dir=F.dir<0?-1:1;
   if(k==="name")return l.slice().sort((a,b)=>dir*a.name.localeCompare(b.name,"ro"));
   const ix=Object.fromEntries(RECIPES.map((r,i)=>[r.id,i]));
@@ -929,7 +985,7 @@ function card(r){const n=r.nut,fav=S.fav.includes(r.id),sel=F.sel&&SEL.has(r.id)
       ${macroBar(n)}${macroPct(n)}
       <div class="stats"><span><b>${n.kcal}</b>kcal</span><span><b>${fmt(n.p)} g</b>proteine</span><span><b>${r.prep+r.cook}′</b>timp</span><span><b>${fmt(r.cost,1)}</b>lei</span></div>
     </button>
-    ${F.sel?"":`<div class="actions"><button class="btn sm paper" data-addplan="${r.id}">+ În plan</button><button class="btn sm paper" data-colpick="${r.id}" title="Colecții">${spr("book",16)} ${(()=>{const k=S.cols.filter(c=>c.ids.includes(r.id)).length;return k?k+(k===1?" colecție":" colecții"):"Colecții"})()}</button>${r.nutMiss.length&&r.nutSrc==="calc"?`<span class="badge b-warn" title="${esc(r.nutMiss.join(", "))}">nutriție incompletă</span>`:""}</div>`}
+    ${F.sel?"":`<div class="actions"><button class="btn sm paper" data-addplan="${r.id}">+ În plan</button><button class="btn sm paper" data-colpick="${r.id}" title="Colecții">${spr("book",16)} ${(()=>{const k=S.cols.filter(c=>c.ids.includes(r.id)).length;return k?k+(k===1?" colecție":" colecții"):"Colecții"})()}</button>${r.nutMiss.length&&r.nutSrc==="calc"?`<span class="badge b-warn" title="${esc(r.nutMiss.join(", "))}">nutriție incompletă</span>`:""}${missingTools(r).length?`<span class="badge b-bad" title="Din Bucătărie → Unelte">fără ${esc(missingTools(r).join(", "))}</span>`:""}</div>`}
   </article>`}
 function chipGroup(title,items,isOn,attr){return `<div class="fgroup"><b>${title}</b><div class="seg">${items.map(([v,l])=>`<button class="chip" ${attr}="${esc(v)}" aria-pressed="${isOn(v)}">${l}</button>`).join("")}</div></div>`}
 function viewRecipes(){
@@ -961,7 +1017,7 @@ function viewRecipes(){
   </div>
   <div class="panel flat" id="fpanel" ${F.open?"":"hidden"} style="margin-bottom:14px">
     <div class="fpanel">
-      ${chipGroup("Unelte",TOOLS.map(t=>[t,t]),v=>F.tools.has(v),"data-ftool")}
+      <div class="fgroup"><b>Unelte</b><div class="seg"><button class="chip" id="fMine" aria-pressed="${F.mine}">${spr("f_pan",14)} doar cu uneltele mele${S.kitchen.miss.length?` <span class="small muted">(îți lipsesc ${S.kitchen.miss.length})</span>`:""}</button>${TOOLS.map(t=>`<button class="chip" data-ftool="${esc(t)}" aria-pressed="${F.tools.has(t)}">${t}</button>`).join("")}</div></div>
       ${chipGroup("Timp total",[[0,"oricât"],[15,"≤ 15 min"],[30,"≤ 30 min"],[45,"≤ 45 min"],[60,"≤ 1 oră"]],v=>F.time==v,"data-ftime")}
       ${chipGroup("Dietă",DIETF.map(t=>[t,t]),v=>F.diet.has(v),"data-fdiet")}
       ${S.people.length?chipGroup("Potrivit pentru",[["","oricine"],...S.people.map(p=>[p.id,esc(p.name)])],v=>F.pers===v,"data-fpers"):""}
@@ -984,6 +1040,7 @@ function viewRecipes(){
   const q=$("#q");q.addEventListener("input",()=>{F.q=q.value.trim();const pos=q.selectionStart;viewRecipes();const n=$("#q");n.focus();n.setSelectionRange(pos,pos)});
   $("#ftoggle").onclick=()=>{F.open=!F.open;viewRecipes()};
   $("#fsort").onchange=e=>{F.sort=e.target.value;F.dir=(SORTS.find(x=>x[0]===F.sort)||[0,0,1])[2];viewRecipes()};
+  $("#fMine").onclick=()=>{F.mine=!F.mine;viewRecipes()};
   $("#fdir").onclick=()=>{F.dir=F.dir<0?1:-1;viewRecipes()};
   $("#newRx").onclick=()=>editRecipe(null);$("#colMan").onclick=colManager;
   $("#view").querySelectorAll("[data-fcol]").forEach(b=>b.onclick=()=>{F.col=b.dataset.fcol;viewRecipes()});$("#libCats").onclick=catManager;$("#libIO").onclick=libHub;
@@ -993,7 +1050,7 @@ function viewRecipes(){
     V.querySelectorAll("[data-selr]").forEach(c=>c.onchange=()=>{c.checked?SEL.add(c.dataset.selr):SEL.delete(c.dataset.selr);viewRecipes()});
     $("#bAll").onclick=()=>{list.forEach(r=>SEL.add(r.id));viewRecipes()};$("#bNone").onclick=()=>{SEL.clear();viewRecipes()};
     $("#bCat").onclick=()=>bulkCats([...SEL]);$("#bCol").onclick=()=>colPicker([...SEL]);$("#bExp").onclick=()=>exportModal([...SEL]);$("#bDel").onclick=()=>deleteRecipes([...SEL])}
-  const reset=()=>{F.tags.clear();F.tools.clear();F.diet.clear();F.time=F.prot=F.kcal=F.cost=F.diff=0;F.pers="";F.q="";viewRecipes()};
+  const reset=()=>{F.mine=false;F.tags.clear();F.tools.clear();F.diet.clear();F.time=F.prot=F.kcal=F.cost=F.diff=0;F.pers="";F.q="";viewRecipes()};
   const fr=$("#freset");if(fr)fr.onclick=reset;const fr2=$("#freset2");if(fr2)fr2.onclick=reset;
 }
 const tog=(set,v)=>set.has(v)?set.delete(v):set.add(v);
@@ -1062,7 +1119,7 @@ function drawRecipe(){
       <div><dt>Rețeta face</dt><dd>${r.batch} ${r.batch===1?"porție":"porții"}</dd></div>
       <div><dt>Frigider</dt><dd>${esc(r.fridge)}</dd></div>
       <div><dt>Congelator</dt><dd>${esc(r.freezer)}</dd></div>
-      ${r.tools.length?`<div style="grid-column:1/-1"><dt>Unelte</dt><dd>${r.tools.map(esc).join(" · ")}</dd></div>`:""}
+      ${r.tools.length?`<div style="grid-column:1/-1"><dt>Unelte</dt><dd>${r.tools.map(esc).join(" · ")}${missingTools(r).length?` <span class="badge b-bad">îți lipsește: ${esc(missingTools(r).join(", "))}</span>`:""}</dd></div>`:""}
     </dl>
     ${r.src.url||vu?`<div class="row">
       ${r.src.url?`<a class="btn paper" href="${esc(r.src.url)}" target="_blank" rel="noopener">Rețeta originală ↗</a>`:""}
@@ -1297,7 +1354,6 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-pick]");if
 
 /* --- 2 · Cine ce mănâncă --- */
 function planGrid(){
-  const cookDays=new Map(PL().sessions.map(s=>[s.day,s]));
   $("#planBody").innerHTML=`
   <div class="row" style="margin-bottom:10px">
     <button class="btn green" id="fillEmpty">Umple automat golurile</button>
@@ -1306,15 +1362,9 @@ function planGrid(){
     <button class="btn paper" id="clearCal">Golește</button>
   </div>
   <section class="panel">
-    <p class="small muted" style="margin:0 0 6px">Atinge o căsuță ca să alegi ce mănâncă fiecare și cât. Căsuțele punctate nu sunt acoperite de meal-prep (le poți completa totuși). ${spr("flame",14)} = zi de gătit.</p>
-    <div class="calwrap"><table class="cal" style="min-width:${80+LEN()*128}px"><thead><tr><th class="slot"></th>${DAYIX().map(d=>`<th>${esc(cap(dShort(d)))}<br>${cookDays.has(d)?`<span class="cook">${spr("flame",12)} gătim</span>`:"&nbsp;"}</th>`).join("")}</tr></thead>
-    <tbody>${activeSlots().map(sl=>`<tr><th class="slot">${spr(sl.s,18)}<br>${esc(sl.n)}</th>${DAYIX().map(d=>{
-      const covered=S.people.some(p=>cov(p,sl.id,d));
-      const lines=S.people.map(p=>{const es=entries(d,sl.id,p.id);if(!es.length&&!hasSlot(p,sl.id))return"";if(!es.length)return cov(p,sl.id,d)?`<div class="pl">${avHTML(p,"sm")}<span class="gap">gol</span></div>`:"";
-        const warn=es.some(e=>e.b&&(["bad","before"].includes(freshness(batchById(e.b),d))||!compat(R[batchById(e.b).rid],p).ok)),ice=es.some(e=>e.b&&freshness(batchById(e.b),d)==="freeze");
-        const lg=logOf(iso(dayDate(d)),p.id,sl.id),lm=lg?`<span class="portion-flag" title="jurnal: ${LST[lg.st][1]}">${lg.st==="ok"?"✓":lg.st==="skip"?"⤫":"↺"}</span>`:"";
-        return `<div class="pl">${avHTML(p,"sm")}${lm}${es.map(e=>e.c?`<span class="dot-th" title="${esc(e.n)}" style="background:var(--butter-soft)">${spr("note",13)}</span>`:e.s?`<span class="dot-th" title="${esc(entryName(e))} ×${fmtM(e.m)}" style="background:var(--leaf-soft)">${spr(FOOD[e.s].s,13)}</span>`:`<span title="${esc(entryName(e))} ×${fmtM(e.m)}">${thumb(R[batchById(e.b).rid],"dot-th",13)}</span>`).join("")}${ice?'<span class="portion-flag" title="din congelator">❄</span>':""}${warn?'<span class="portion-flag" title="verifică">⚠</span>':""}</div>`}).join("");
-      return `<td><button class="cell ${covered?"":"off"}" data-slot="${d}|${sl.id}" aria-label="${esc(cap(dLong(d)))}, ${sl.n}">${lines||`<span class="gap">—</span>`}</button></td>`}).join("")}</tr>`).join("")}</tbody></table></div>
+    <div class="row between" style="margin-bottom:6px"><p class="small muted" style="margin:0;flex:1;min-width:200px">Atinge o căsuță ca să alegi ce mănâncă fiecare și cât. Căsuțele punctate nu sunt acoperite de meal-prep (le poți completa totuși). ${spr("flame",14)} = zi de gătit.</p>
+      <button class="btn sm paper" id="calFull" title="Deschide orarul pe tot ecranul">⛶ Ecran complet</button></div>
+    <div class="calwrap">${calHTML(false)}</div>
   </section>
   <section class="panel" style="margin-top:14px">
     <h3 class="sec-title">${spr("heart",22)} Pe scurt, pe persoană</h3>
@@ -1327,7 +1377,28 @@ function planGrid(){
   $("#covEdit2").onclick=()=>editCover(S.people[0].id);
   $("#clearCal").onclick=()=>{PL().meals={};S.sample=false;save();viewPlan()};
   $("#planBody").querySelectorAll("[data-slot]").forEach(b=>b.onclick=()=>{const [d,sl]=b.dataset.slot.split("|");editSlot(+d,sl)});
+  $("#calFull").onclick=openCalFull;
+  if(calFull&&!modalOpen())openCalFull();
 }
+/* Orarul „cine ce mănâncă”: în pagină (iconițe) sau pe tot ecranul (cu numele felurilor) */
+function calHTML(full){const cookDays=new Map(PL().sessions.map(s=>[s.day,s]));
+  return `<table class="cal${full?" calf":""}" style="min-width:${(full?110:80)+LEN()*(full?190:128)}px"><thead><tr><th class="slot"></th>${DAYIX().map(d=>`<th>${esc(cap(dShort(d)))}<br>${cookDays.has(d)?`<span class="cook">${spr("flame",12)} gătim</span>`:"&nbsp;"}</th>`).join("")}</tr></thead>
+    <tbody>${activeSlots().map(sl=>`<tr><th class="slot">${spr(sl.s,18)}<br>${esc(sl.n)}</th>${DAYIX().map(d=>{
+      const covered=S.people.some(p=>cov(p,sl.id,d));
+      const lines=S.people.map(p=>{const es=entries(d,sl.id,p.id);if(!es.length&&!hasSlot(p,sl.id))return"";if(!es.length)return cov(p,sl.id,d)?`<div class="pl">${avHTML(p,"sm")}<span class="gap">gol</span></div>`:"";
+        const warn=es.some(e=>e.b&&(["bad","before"].includes(freshness(batchById(e.b),d))||!compat(R[batchById(e.b).rid],p).ok)),ice=es.some(e=>e.b&&freshness(batchById(e.b),d)==="freeze");
+        const lg=logOf(iso(dayDate(d)),p.id,sl.id),lm=lg?`<span class="portion-flag" title="jurnal: ${LST[lg.st][1]}">${lg.st==="ok"?"✓":lg.st==="skip"?"⤫":"↺"}</span>`:"";
+        const ico=e=>e.c?`<span class="dot-th" style="background:var(--butter-soft)">${spr("note",13)}</span>`:e.s?`<span class="dot-th" style="background:var(--leaf-soft)">${spr(FOOD[e.s].s,13)}</span>`:thumb(R[batchById(e.b).rid],"dot-th",13);
+        if(full)return `<div class="plf"><div class="row" style="gap:4px">${avHTML(p,"sm")}<b class="small">${esc(p.name)}</b>${lm}${ice?'<span class="portion-flag" title="din congelator">❄</span>':""}${warn?'<span class="portion-flag" title="verifică">⚠</span>':""}<span class="tiny-t muted" style="margin-left:auto">${fmt(slotNut(d,sl.id,p.id).kcal)} kcal</span></div>
+          ${es.map(e=>`<div class="fe">${ico(e)}<span>${esc(entryName(e))}${e.c?"":` <b>×${fmtM(e.m)}</b>`}</span></div>`).join("")}</div>`;
+        return `<div class="pl">${avHTML(p,"sm")}${lm}${es.map(e=>`<span title="${esc(entryName(e))}${e.c?"":" ×"+fmtM(e.m)}">${ico(e)}</span>`).join("")}${ice?'<span class="portion-flag" title="din congelator">❄</span>':""}${warn?'<span class="portion-flag" title="verifică">⚠</span>':""}</div>`}).join("");
+      return `<td><button class="cell ${covered?"":"off"}" data-slot="${d}|${sl.id}" aria-label="${esc(cap(dLong(d)))}, ${esc(sl.n)}">${lines||`<span class="gap">—</span>`}</button></td>`}).join("")}</tr>`).join("")}</tbody></table>`}
+let calFull=false;
+function openCalFull(){calFull=true;modalCtx=()=>openCalFull();
+  openModal(`<div class="sheet-h"><div class="small" style="font-weight:800">${spr("cal",16)} CINE CE MĂNÂNCĂ · ${esc(weekLabel().toUpperCase())}</div><h2>Orarul mesei</h2>${xbtn()}</div>
+    <div class="sheet-b"><div class="row" style="gap:6px">${S.people.map(p=>`<span class="row small" style="gap:4px">${avHTML(p,"sm")}${esc(p.name)}</span>`).join("")}<span class="tiny-t muted" style="margin-left:auto">Atinge o căsuță ca s-o schimbi. Pe telefon, ținut orizontal se vede mai bine.</span></div>
+    <div class="calwrap calfw">${calHTML(true)}</div></div>`,"calfull");
+  $("#overlay").querySelectorAll("[data-slot]").forEach(b=>b.onclick=()=>{const [d,sl]=b.dataset.slot.split("|");editSlot(+d,sl)})}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-gotab]");if(b){if(modalOpen())closeModal();go(b.dataset.gotab)}});
 
 /* Editor de masă */
@@ -1446,8 +1517,9 @@ function planIngr(){
   $("#planBody").querySelectorAll("[data-isel]").forEach(c=>c.onchange=()=>{c.checked?ingSel.add(c.dataset.isel):ingSel.delete(c.dataset.isel);const n=rows.filter(x=>ingSel.has(x.k)).length;const b=$("#toShop");b.disabled=!n;b.innerHTML=`${spr("basket",18)} Pune pe listă (${n})`});
   $("#selMiss").onclick=()=>{ingSel=new Set(rows.filter(x=>x.miss>0).map(x=>x.k));planIngr()};
   $("#selNone").onclick=()=>{ingSel=new Set();planIngr()};
-  $("#toShop").onclick=()=>{let n=0;for(const x of rows.filter(x=>ingSel.has(x.k))){const q=x.miss>0?x.miss:x.g;addToShop({k:x.k,q:Math.ceil(q),u:x.u,a:ING[x.k].a});n++}
-    ingSel=null;save();renderNav();toast(`Am pus ${n} ${n===1?"produs":"produse"} pe listă`);planIngr()};
+  $("#toShop").onclick=()=>{const sel=rows.filter(x=>ingSel.has(x.k));pickList(`${sel.length} ${sel.length===1?"produs":"produse"} pe ce listă?`,l=>{
+    for(const x of sel){const q=x.miss>0?x.miss:x.g;addToShop({k:x.k,q:Math.ceil(q),u:x.u,a:ING[x.k].a},l.id)}
+    S.curList=l.id;ingSel=null;save();renderNav();toast(`Am pus ${sel.length} ${sel.length===1?"produs":"produse"} pe „${l.n}”`)})};
 }
 
 /* ================= Persoane ================= */
@@ -1545,12 +1617,22 @@ function viewNutPlan(){
   $("#view").querySelectorAll("[data-nedit]").forEach(b=>b.onclick=()=>{const [dd,sl]=b.dataset.nedit.split("|");editSlot(+dd,sl,p.id)});
 }
 
-/* ================= Listă ================= */
+/* ================= Cumpărături ================= */
+const listCost=l=>l.items.filter(x=>x.k&&!x.done).reduce((a,x)=>a+ingCost(x.k,x.q),0);
 function viewList(){
-  const items=S.shop,done=items.filter(x=>x.done).length;
-  const cost=items.filter(x=>x.k&&!x.done).reduce((a,x)=>a+ingCost(x.k,x.q),0);
+  const L=curL(),items=S.shop,done=items.filter(x=>x.done).length;
+  const cost=listCost(L);const act=activeLists(),hist=doneLists();
   $("#view").innerHTML=`
-  <div class="page-title">${spr("basket",30)}<h2>Lista de cumpărături</h2></div>
+  <div class="page-title">${spr("basket",30)}<h2>Cumpărături</h2></div>
+  <div class="lstrip" role="tablist" aria-label="Liste de cumpărături">${act.map(l=>{const n=l.items.length,d=l.items.filter(x=>x.done).length;return `<button class="lcard${l.id===L.id?" on":""}" data-lsel="${l.id}" role="tab" aria-selected="${l.id===L.id}">
+      <span class="row" style="gap:6px;flex-wrap:nowrap">${spr(l.s,22)}<b>${esc(l.n)}</b></span><span class="tiny-t muted">${n?`${n-d} de luat${d?` · ${d} în coș`:""}`:"goală"} · ${esc(shortDate(l.c))}</span>
+      <span class="bar mini"><i style="width:${n?d/n*100:0}%"></i></span></button>`}).join("")}
+    <button class="lcard add" id="lNew"><span class="row" style="gap:6px">${spr("note",22)}<b>+ Listă nouă</b></span><span class="tiny-t muted">Lidl, Kaufland, piață…</span></button></div>
+  <div class="panel lhead" style="margin-bottom:12px">
+    <div class="row between"><span class="row" style="gap:8px;min-width:0">${spr(L.s,30)}<span style="min-width:0"><b style="font-size:19px">${esc(L.n)}</b><br><span class="tiny-t muted">creată ${esc(shortDate(L.c))}${L.fin?` · terminată ${esc(shortDate(L.fin))}`:""}</span></span></span>
+      <span class="row" style="gap:6px"><button class="tiny" id="lEdit">✎ nume</button><button class="tiny" id="lDup">⧉ copie</button>${L.fin?`<button class="tiny" id="lOpen">redeschide</button>`:`<button class="tiny" id="lFin">✓ gata</button>`}<button class="tiny" id="lDel">șterge</button></span></div>
+    ${L.fin?`<div class="note-box" style="margin-top:8px">Lista asta e în istoric. O poți redeschide sau poți face o copie ca s-o cumperi din nou.</div>`:""}
+  </div>
   <div class="panel flat" style="margin-bottom:14px;display:grid;gap:10px">
     <div class="row between"><b>${done} din ${items.length} în coș</b><span class="num small">≈ ${fmt(cost)} lei de cumpărat</span></div>
     <div class="bar"><i style="width:${items.length?done/items.length*100:0}%"></i></div>
@@ -1564,19 +1646,64 @@ function viewList(){
       <span class="what"><b>${esc(itName(x))}</b><small>${x.k&&ING[x.k].cnt?esc(countHint(x.k,x.q))+" · ":""}${have?`ai deja în cămară ${amt(have,u)}`:"nu e în cămară"}</small></span>
       <span class="amt"><span class="stepper"><button data-q="${x.id}|-${st}" aria-label="Mai puțin">−</button>${numOut(x.q,"sq|"+x.id,amt(x.q,u),{u,st:"min-width:64px"})}<button data-q="${x.id}|${st}" aria-label="Mai mult">+</button></span><button class="tiny" data-sdel2="${x.id}" aria-label="Șterge">×</button></span></div>`}).join("")}</section>`}).join("")}</div>
   <div class="row" style="margin-top:12px"><button class="btn red sm" id="clearList">Golește lista</button><span id="clearAsk"></span></div>`
-  :`<div class="panel empty">${spr("basket",44)}<b>Lista e goală</b><span class="muted small">Pune ingredientele din plan (Plan → 3 · Ingrediente) sau adaugă produse de mână.</span></div>`}`;
+  :`<div class="panel empty">${spr("basket",44)}<b>Lista e goală</b><span class="muted small">Pune ingredientele din plan (Plan → 3 · Ingrediente) sau adaugă produse de mână.</span></div>`}
+  ${hist.length?`<section class="panel" style="margin-top:16px"><h3 class="sec-title">${spr("book",22)} Istoric</h3><div class="stack" style="gap:6px">${hist.map(l=>`<div class="hrow${l.id===L.id?" on":""}">${spr(l.s,20)}<span class="grow" style="min-width:0"><b>${esc(l.n)}</b><br><span class="tiny-t muted">terminată ${esc(shortDate(l.fin))} · ${l.items.length} produse${l.items.some(x=>x.k)?` · ≈ ${fmt(l.items.filter(x=>x.k).reduce((a,x)=>a+ingCost(x.k,x.q),0))} lei`:""}</span></span>
+    <button class="tiny" data-lsel="${l.id}">vezi</button><button class="tiny" data-lagain="${l.id}">cumpără din nou</button></div>`).join("")}</div></section>`:""}`;
   const V=$("#view");
   V.querySelectorAll("[data-chk]").forEach(c=>c.onchange=()=>{S.shop.find(x=>x.id===c.dataset.chk).done=c.checked;save();viewList();renderNav()});
   NUMSET.sq=(id,v)=>{const x=S.shop.find(y=>y.id===id);if(!x)return;x.q=v;if(!v)S.shop=S.shop.filter(y=>y!==x);save();viewList();renderNav()};
   V.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{const [id,dlt]=b.dataset.q.split("|");const x=S.shop.find(y=>y.id===id);x.q=Math.max(0,(+x.q||0)+ +dlt);if(!x.q)S.shop=S.shop.filter(y=>y!==x);save();viewList();renderNav()});
   V.querySelectorAll("[data-sdel2]").forEach(b=>b.onclick=()=>{S.shop=S.shop.filter(y=>y.id!==b.dataset.sdel2);save();viewList();renderNav()});
   $("#addItem").onclick=()=>itemModal("shop");
+  V.querySelectorAll("[data-lsel]").forEach(b=>b.onclick=()=>{S.curList=b.dataset.lsel;save();viewList();window.scrollTo({top:0})});
+  V.querySelectorAll("[data-lagain]").forEach(b=>b.onclick=()=>{copyList(b.dataset.lagain)});
+  $("#lNew").onclick=()=>listModal(null);$("#lEdit").onclick=()=>listModal(L.id);$("#lDup").onclick=()=>copyList(L.id);
+  const lf=$("#lFin");if(lf)lf.onclick=()=>finishList(L.id);const lo=$("#lOpen");if(lo)lo.onclick=()=>{L.fin=null;save();viewList();renderNav();toast("Lista e din nou activă")};
+  $("#lDel").onclick=()=>deleteList(L.id);
   $("#fromPlan").onclick=()=>{S.planTab="ingr";go("plan")};
   $("#exportList").onclick=exportListModal;
   const tp=$("#toPantry");if(tp)tp.onclick=()=>{for(const x of S.shop.filter(y=>y.done))addToPantry(x);S.shop=S.shop.filter(y=>!y.done);save();viewList();renderNav();toast("Am mutat produsele în cămară")};
   const dd=$("#delDone");if(dd)dd.onclick=()=>{S.shop=S.shop.filter(y=>!y.done);save();viewList();renderNav()};
   const cl=$("#clearList");if(cl)cl.onclick=()=>{$("#clearAsk").innerHTML=`<button class="btn red sm" id="clearYes">Da, golește</button>`;$("#clearYes").onclick=()=>{S.shop=[];save();viewList();renderNav()}};
 }
+function copyList(id){const src=listById(id);if(!src)return;const l=newList(src.n.replace(/\s*\(copie\)$/,"")+" (copie)",src.s);l.items=src.items.map(x=>({...x,id:uid(),done:false}));save();viewList();renderNav();window.scrollTo({top:0});toast("Listă nouă din „"+src.n+"”, toate nebifate")}
+function listModal(id){const L=id?listById(id):null;let n=L?L.n:"",s=L?L.s:"basket";modalCtx=null;
+  const draw=()=>{openModal(`<div class="sheet-h"><h2>${L?"Lista":"Listă nouă"}</h2>${xbtn()}</div><div class="sheet-b">
+    <div class="field"><label for="lnm">Nume</label><input id="lnm" value="${esc(n)}" placeholder="ex. Lidl, Kaufland, Piață, Mega" maxlength="30"></div>
+    <div class="row" style="gap:6px">${["Lidl","Kaufland","Mega Image","Carrefour","Piață","Profi"].map(x=>`<button class="chip" data-lq="${x}">${x}</button>`).join("")}</div>
+    <div class="fgroup"><b>Iconiță</b>${iconGrid(s,"data-lic")}</div>
+    <div class="row"><button class="btn green" id="lOk">${L?"Salvează":"Creează"}</button></div></div>`);
+    const o=$("#overlay");$("#lnm").oninput=e=>{n=e.target.value};
+    o.querySelectorAll("[data-lq]").forEach(b=>b.onclick=()=>{n=b.dataset.lq;draw()});
+    o.querySelectorAll("[data-lic]").forEach(b=>b.onclick=()=>{n=$("#lnm").value;s=b.dataset.lic;draw()});
+    $("#lOk").onclick=()=>{n=$("#lnm").value.trim();if(L){L.n=n||L.n;L.s=s}else newList(n,s);save();closeModal();toast(L?"Salvat":"Listă creată")}};draw()}
+function finishList(id){const L=listById(id);const dn=L.items.filter(x=>x.done),left=L.items.filter(x=>!x.done);let toP=true,where=left.length?"keep":"";modalCtx=null;
+  const others=activeLists().filter(l=>l.id!==id);
+  const draw=()=>{openModal(`<div class="sheet-h"><h2>Gata cu „${esc(L.n)}”?</h2>${xbtn()}</div><div class="sheet-b">
+    <p class="small muted" style="margin:0">Lista trece în istoric, de unde o poți revedea sau cumpăra din nou.</p>
+    ${dn.length?`<label class="row small"><input type="checkbox" class="cbx" id="fToP" ${toP?"checked":""}> Pune în cămară ce am cumpărat (${dn.length})</label>`:""}
+    ${left.length?`<div class="fgroup"><b>Au rămas ${left.length} nebifate</b>
+      <label class="row small"><input type="radio" name="fl" value="keep" ${where==="keep"?"checked":""}> Rămân pe lista asta (nu le mai iau)</label>
+      ${others.map(o=>`<label class="row small"><input type="radio" name="fl" value="${o.id}" ${where===o.id?"checked":""}> Mută-le pe „${esc(o.n)}”</label>`).join("")}
+      <label class="row small"><input type="radio" name="fl" value="new" ${where==="new"?"checked":""}> Mută-le pe o listă nouă</label></div>`:""}
+    <div class="row"><button class="btn green" id="fOk">✓ Termină lista</button></div></div>`);
+    const c=$("#fToP");if(c)c.onchange=()=>{toP=c.checked};$("#overlay").querySelectorAll('input[name="fl"]').forEach(x=>x.onchange=()=>{where=x.value});
+    $("#fOk").onclick=()=>{if(toP)for(const x of dn)addToPantry(x);
+      if(left.length&&where!=="keep"){const t=where==="new"?newList():listById(where);t.items.push(...left.map(x=>({...x,id:uid()})));L.items=L.items.filter(x=>x.done)}
+      L.fin=Date.now();if(S.curList===L.id)S.curList=(activeLists()[0]||newList()).id;save();closeModal();renderNav();toast("Lista e în istoric")}};draw()}
+function deleteList(id){const L=listById(id);modalCtx=null;
+  openModal(`<div class="sheet-h"><h2>Ștergi „${esc(L.n)}”?</h2>${xbtn()}</div><div class="sheet-b"><p style="margin:0">${L.items.length} produse. Nu se poate anula.</p>
+    <div class="row"><button class="btn red" id="dOk">Da, șterge</button><button class="btn paper" data-close>Nu</button></div></div>`);
+  $("#dOk").onclick=()=>{S.lists=S.lists.filter(l=>l.id!==id);if(!S.lists.length||!activeLists().length&&S.curList===id)newList("Cumpărături");if(!curL())S.curList=(activeLists()[0]||S.lists[0]).id;save();closeModal();renderNav();toast("Lista e ștearsă")}}
+/* „Pe ce listă?” — sugerează lista creată cel mai recent */
+function pickList(title,cb){const act=activeLists();let sel=act[0]?act[0].id:"new",nn="";modalCtx=null;
+  const draw=()=>{openModal(`<div class="sheet-h"><h2>${esc(title)}</h2>${xbtn()}</div><div class="sheet-b">
+    <div class="stack" style="gap:6px">${act.map((l,i)=>`<label class="pickl${sel===l.id?" on":""}"><input type="radio" name="pl" value="${l.id}" ${sel===l.id?"checked":""}>${spr(l.s,22)}<span class="grow"><b>${esc(l.n)}</b><br><span class="tiny-t muted">${l.items.filter(x=>!x.done).length} de luat · creată ${esc(shortDate(l.c))}${i===0?" · cea mai nouă":""}</span></span></label>`).join("")}
+      <label class="pickl${sel==="new"?" on":""}"><input type="radio" name="pl" value="new" ${sel==="new"?"checked":""}>${spr("note",22)}<span class="grow"><b>Listă nouă</b>${sel==="new"?`<input id="plN" class="inp" style="width:100%;margin-top:4px" placeholder="ex. Lidl" value="${esc(nn)}">`:""}</span></label></div>
+    <div class="row"><button class="btn green" id="plOk">Pune pe listă</button></div></div>`);
+    $("#overlay").querySelectorAll('input[name="pl"]').forEach(x=>x.onchange=()=>{const i=$("#plN");if(i)nn=i.value;sel=x.value;draw()});
+    const i=$("#plN");if(i){i.oninput=()=>{nn=i.value};i.focus()}
+    $("#plOk").onclick=()=>{const l=sel==="new"?newList(nn.trim()):listById(sel);closeModal();cb(l)}};draw()}
 function itemModal(where){
   let q="",sel=null;modalCtx=null;
   const draw=()=>{const res=q?Object.entries(ING).filter(([k,v])=>v.n.toLowerCase().includes(q.toLowerCase())).slice(0,8):[];
@@ -1600,10 +1727,10 @@ function itemModal(where){
   };draw();
 }
 function listText(fmtKind){
-  const its=S.shop.filter(x=>!x.done);
+  const its=S.shop.filter(x=>!x.done),L=curL();
   if(fmtKind==="simple")return its.map(x=>itName(x)+" – "+amt(x.q,itUnit(x))).join("\n");
   if(fmtKind==="csv")return "Produs;Cantitate;Unitate;Raion\n"+its.map(x=>[itName(x),Math.round(x.q*100)/100,itUnit(x),AISLE[itAisle(x)].name].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";")).join("\n");
-  return "🧺 Cumpărături\n"+AISLES.map(a=>{const l=its.filter(x=>itAisle(x)===a.id);if(!l.length)return"";
+  return "🧺 "+(L?L.n:"Cumpărături")+"\n"+AISLES.map(a=>{const l=its.filter(x=>itAisle(x)===a.id);if(!l.length)return"";
     return "\n"+a.name.toUpperCase()+"\n"+l.map(x=>"☐ "+itName(x)+" – "+amt(x.q,itUnit(x))+(x.k&&ING[x.k].cnt?" ("+countHint(x.k,x.q)+")":"")).join("\n")}).join("\n").trim();
 }
 function exportListModal(){
@@ -1748,7 +1875,7 @@ function viewPantry(){
         <button class="tiny" data-fdel="${f.u}" aria-label="Scoate din cămară">×</button></div></div></div>`};
   const inv=S.pantry.slice();
   $("#view").innerHTML=`
-  <div class="page-title">${spr("fridge",30)}<h2>Cămara</h2></div>
+  <div class="page-title">${spr("fridge",30)}<h2>Bucătăria</h2></div>
   ${eat.length?`<div class="note-box" style="margin-bottom:14px"><b>De mâncat primele:</b> ${eat.map(f=>esc(R[f.rid].name)+" ("+fmtM(f.portions)+")").join(", ")}</div>`:""}
   <div class="stack">
     <section class="panel stack"><div class="row between"><h3 class="sec-title" style="margin:0">${spr("pot",22)} Mâncare gătită · frigider</h3><button class="btn sm paper" id="addBox">+ Adaugă</button></div>
@@ -1762,6 +1889,11 @@ function viewPantry(){
           <span class="amt"><span class="stepper"><button data-iq="${x.id}|-${st}" aria-label="Mai puțin">−</button>${numOut(x.q,"iq|"+x.id,amt(x.q,u),{u,st:"min-width:64px"})}<button data-iq="${x.id}|${st}" aria-label="Mai mult">+</button></span><button class="tiny" data-idel="${x.id}" aria-label="Șterge">×</button></span></div>`}).join("")}`}).join("")
         :`<div class="empty"><span class="muted small">Nimic adăugat. Produsele bifate pe lista de cumpărături se pot muta aici cu un buton.</span></div>`}
     </section>
+    <section class="panel"><div class="row between"><h3 class="sec-title" style="margin:0">${spr("f_pan",22)} Unelte</h3><span class="small muted">${allTools().length-S.kitchen.miss.length} din ${allTools().length}</span></div>
+      <p class="small muted" style="margin:6px 0 8px">Atinge ce nu ai ca s-o scoți. Rețetele care o cer sunt marcate, le poți ascunde în Rețete (Filtre → „doar cu uneltele mele”), iar planul automat le evită.</p>
+      <div class="tools">${allTools().map(k=>{const has=!S.kitchen.miss.includes(k.id),n=RECIPES.filter(r=>reqTools(r).includes(k.id)).length;return `<span class="tool${has?"":" off"}"><button class="tooltog" data-ktool="${esc(k.id)}" aria-pressed="${has}" title="${has?"Am":"Nu am"}: ${esc(k.id)}">${spr(k.s,22)}<span><b>${esc(k.id)}</b><small>${has?"✓ am":"nu am"} · ${n} ${n===1?"rețetă":"rețete"}</small></span></button>${k.custom?`<button class="tiny" data-kdel="${esc(k.id)}" aria-label="Scoate ${esc(k.id)}">×</button>`:""}</span>`}).join("")}</div>
+      <div class="row" style="gap:6px;margin-top:10px"><input id="kNew" class="inp" placeholder="altă unealtă, ex. vas wok, mașină de paste" style="flex:1;min-width:170px" maxlength="30"><button class="btn sm" id="kAdd">+ Adaugă</button></div>
+      <p class="tiny-t muted" style="margin:6px 0 0">O unealtă adăugată de voi contează la rețetele care o pomenesc în lista de unelte.</p></section>
     <section class="panel"><h3 class="sec-title">Reguli scurte</h3>
       <ul class="small" style="margin:0;padding-left:20px;display:grid;gap:3px">
         <li>Frigiderul la 4°C sau mai rece. Caserolele nu se pun calde, dar nici nu stau pe masă peste 2 ore.</li>
@@ -1778,6 +1910,9 @@ function viewPantry(){
   V.querySelectorAll("[data-iq]").forEach(b=>b.onclick=()=>{const [id,dl]=b.dataset.iq.split("|");const x=S.pantry.find(y=>y.id===id);x.q=Math.max(0,(+x.q||0)+ +dl);if(!x.q)S.pantry=S.pantry.filter(y=>y!==x);save();viewPantry()});
   V.querySelectorAll("[data-idel]").forEach(b=>b.onclick=()=>{S.pantry=S.pantry.filter(y=>y.id!==b.dataset.idel);save();viewPantry()});
   $("#addInv").onclick=()=>itemModal("pantry");
+  V.querySelectorAll("[data-ktool]").forEach(b=>b.onclick=()=>{const id=b.dataset.ktool,m=S.kitchen.miss;S.kitchen.miss=m.includes(id)?m.filter(x=>x!==id):[...m,id];save();viewPantry()});
+  V.querySelectorAll("[data-kdel]").forEach(b=>b.onclick=()=>{const id=b.dataset.kdel;S.kitchen.custom=S.kitchen.custom.filter(x=>x!==id);S.kitchen.miss=S.kitchen.miss.filter(x=>x!==id);save();viewPantry()});
+  $("#kAdd").onclick=()=>{const n=$("#kNew").value.trim();if(!n)return;if(allTools().some(k=>norm(k.id)===norm(n))){toast("E deja în listă");return}S.kitchen.custom.push(n);save();viewPantry();toast("Unealtă adăugată")};
   $("#addBox").onclick=()=>{modalCtx=null;openModal(`<div class="sheet-h"><h2>Adaugă în frigider</h2>${xbtn()}</div><div class="sheet-b">
     <div class="field"><label for="jr">Ce ați gătit</label><select id="jr">${RECIPES.slice().sort((a,b)=>a.name.localeCompare(b.name,"ro")).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select></div>
     <div class="fields"><div class="field"><label for="jp">Porții</label><input id="jp" type="number" min="1" max="40" value="4" inputmode="numeric"></div>
@@ -2498,7 +2633,7 @@ function genSession(s,rand,used,opts={}){
       mine.forEach(x=>sess.add(x.id));return mine.sort((a,b)=>(a.fd+(a.fz>0?3:0))-(b.fd+(b.fz>0?3:0)))}
     let pool=compPool(c).filter(x=>!sess.has(x.id));if(!pool.length)pool=compPool(c);
     const w=x=>{let v=1;if(ppl.every(p=>okFor(x,p,isF)))v*=4;else if(!ppl.some(p=>okFor(x,p,isF)))v*=.03;
-      if(!isF){if(S.fav.includes(x.id))v*=2;if(used.has(x.id))v*=.35;if(!(x.fd>=days.length||x.fz>0))v*=.3}return v};
+      if(!isF){if(!haveTools(x))v*=.02;if(S.fav.includes(x.id))v*=2;if(used.has(x.id))v*=.35;if(!(x.fd>=days.length||x.fz>0))v*=.3}return v};
     const out=[],cand=pool.slice();
     while(out.length<k&&cand.length){const prot=new Set(out.map(o=>o.prot));
       const ws=cand.map(x=>w(x)*(!isF&&x.prot!=="-"&&prot.has(x.prot)?.4:1));let t=ws.reduce((a,b)=>a+b,0)*rand(),i=0;
